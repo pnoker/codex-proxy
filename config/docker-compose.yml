@@ -7,9 +7,8 @@ services:
     ports:
       - "8765:8765"
     volumes:
-      - ${HOME}/.gemini:/home/appuser/.gemini:rw
       - ${HOME}/.config/codex-proxy:/home/appuser/.config/codex-proxy:ro
-      - ../src:/app/src:rw
+      - ${HOME}/.codex/config.toml:/home/appuser/.codex/config.toml:ro
     restart: unless-stopped
     logging:
       driver: "json-file"
@@ -19,5 +18,5 @@ services:
         labels: "service=codex-proxy"
     environment:
       - PYTHONUNBUFFERED=1
-      - CODEX_PROXY_HOST=${CODEX_PROXY_HOST:-127.0.0.1}
+      - CODEX_PROXY_HOST=${CODEX_PROXY_HOST:-0.0.0.0}
       - CODEX_PROXY_LOG_LEVEL=${CODEX_PROXY_LOG_LEVEL:-INFO}
