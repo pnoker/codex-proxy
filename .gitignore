@@ -211,3 +211,4 @@ oauth_creds.json
 secrets.json
 /reference/
 logs/
+.claude/settings.local.json

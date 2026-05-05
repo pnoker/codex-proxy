@@ -1,0 +1,16 @@
+services:
+  codex-proxy:
+    build:
+      context: ..
+      dockerfile: config/Dockerfile
+    container_name: codex-proxy
+    ports:
+      - "8765:8765"
+    volumes:
+      - ${HOME}/.config/codex-proxy:/home/appuser/.config/codex-proxy:ro
+      - ../src:/app/src:rw
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      - PYTHONUNBUFFERED=1
