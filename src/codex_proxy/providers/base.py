@@ -169,6 +169,10 @@ class BaseProvider(ABC):
         compaction_model = data.get("model", self._get_compaction_model())
 
         messages = data.get("input", [])
+        if isinstance(messages, str):
+            messages = [{"role": "user", "content": messages}]
+        else:
+            messages = list(messages)
         compaction_prompt = data.get(
             "instructions", "Summarize the conversation history concisely."
         )
