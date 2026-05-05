@@ -45,7 +45,9 @@ def setup_logging():
 
     log_file = os.environ.get("CODEX_PROXY_LOG_FILE")
     if log_file:
-        os.makedirs(os.path.dirname(log_file), exist_ok=True)
+        log_dir = os.path.dirname(log_file)
+        if log_dir:
+            os.makedirs(log_dir, exist_ok=True)
         fh = RotatingFileHandler(log_file, maxBytes=10 * 1024 * 1024, backupCount=5)
         fh.setFormatter(formatter)
         root.addHandler(fh)

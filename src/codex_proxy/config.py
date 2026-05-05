@@ -48,7 +48,7 @@ class Config:
         default_factory=lambda: _validate_url(
             os.environ.get(
                 "CODEX_PROXY_ZAI_URL",
-                "https://api.z.ai/api/coding/paas/v4",
+                "https://open.bigmodel.cn/api/coding/paas/v4",
             ),
             "Z.AI URL",
         )
