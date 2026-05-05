@@ -46,13 +46,11 @@ src/codex_proxy/
   utils.py             # JSON 序列化, 日志, HTTP session
   exceptions.py        # 异常层级
   providers/
-    base.py            # ABC: handle_request / handle_compact
+    base.py            # ABC: handle_request / handle_compact, 同步响应映射
+    base_stream.py     # SSE 流处理基类, Responses API 事件转换 (所有 provider 共用)
     zai.py             # ZAIProvider: Z.AI API, payload 转换
-    zai_stream.py      # Z.AI SSE -> Codex Responses API 事件
     deepseek.py        # DeepSeekProvider: DeepSeek API
-    deepseek_stream.py # DeepSeek SSE -> Codex Responses API 事件
     xiaomi.py          # XiaomiProvider: Xiaomi API
-    xiaomi_stream.py   # Xiaomi SSE -> Codex Responses API 事件
 tests/
   conftest.py          # sys.path
   test_server.py       # 路由, 校验, compaction, 错误处理
@@ -70,7 +68,7 @@ Codex CLI -> POST /{provider}/v1/responses
   -> RequestValidator.validate_request()
   -> RequestNormalizer.normalize()          # Responses API -> chat 格式
   -> Provider.handle_request()              # 转发到后端
-  -> StreamHandler.stream_responses_loop()  # 后端 SSE -> Codex 事件
+  -> BaseStreamHandler.process_stream()     # 后端 SSE -> Codex 事件
   -> Codex CLI 接收
 ```
 
@@ -94,10 +92,14 @@ Codex CLI 通过 `model_providers` 配置各自的 `base_url` 指向对应路径
 - `CODEX_PROXY_{PROVIDER}_API_KEY` — 认证密钥
 - `CODEX_PROXY_PORT` — 服务端口 (默认 8765)
 - `CODEX_PROXY_LOG_LEVEL` — 日志级别 (默认 DEBUG)
+- `CODEX_PROXY_DEBUG` — 调试模式，记录完整请求体 (默认 false)
+- `CODEX_PROXY_CONFIG_TOKEN` — 配置 UI 认证 token，未设置则不限制访问
 
 ## 关键设计
 
 - **路由隔离**: 每个 provider 独立的 URL 命名空间，不再跨 provider 路由
+- **SSE 流统一处理**: `base_stream.py` 为所有 provider 提供共用的 `BaseStreamHandler`，负责将后端 Chat Completions SSE 转换为 Codex Responses API 事件流
+- **Shell call 转换**: `convert_shell_call()` 共用函数将 `function_call` (shell/container.exec/shell_command) 转换为 `local_shell_call`，同步和流式响应共用
 - **Compaction**: 每个 provider 自己的 `/compact` 端点使用自己的模型
 - **Reasoning 处理**: `reasoning_content` 作为独立 reasoning 输出项，与 content 分离
 - **Tools 过滤**: 只转发 `type: "function"` 的 tools，过滤 `namespace` 等非标准类型
@@ -109,3 +111,4 @@ Codex CLI 通过 `model_providers` 配置各自的 `base_url` 指向对应路径
 - 测试用 unittest.mock, 不发真实 API 调用
 - 配置优先级: 环境变量 > config.json > 内置默认值
 - SSE 流按 Codex Responses API 协议格式输出事件
+- 不要自动 git commit，除非用户明确要求
