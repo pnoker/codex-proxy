@@ -52,6 +52,9 @@ class Config:
     zai_api_key: str = field(
         default_factory=lambda: os.environ.get("CODEX_PROXY_ZAI_API_KEY", "")
     )
+    zai_compaction_model: str = field(
+        default_factory=lambda: os.environ.get("CODEX_PROXY_ZAI_COMPACTION_MODEL", "glm-4.6")
+    )
 
     # DeepSeek
     deepseek_url: str = field(
@@ -66,6 +69,9 @@ class Config:
     deepseek_api_key: str = field(
         default_factory=lambda: os.environ.get("CODEX_PROXY_DEEPSEEK_API_KEY", "")
     )
+    deepseek_compaction_model: str = field(
+        default_factory=lambda: os.environ.get("CODEX_PROXY_DEEPSEEK_COMPACTION_MODEL", "deepseek-chat")
+    )
 
     # Xiaomi
     xiaomi_url: str = field(
@@ -79,6 +85,9 @@ class Config:
     )
     xiaomi_api_key: str = field(
         default_factory=lambda: os.environ.get("CODEX_PROXY_XIAOMI_API_KEY", "")
+    )
+    xiaomi_compaction_model: str = field(
+        default_factory=lambda: os.environ.get("CODEX_PROXY_XIAOMI_COMPACTION_MODEL", "mimo-v2.5-pro")
     )
 
     # Logging

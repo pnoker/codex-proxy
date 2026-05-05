@@ -181,7 +181,7 @@ class ZAIProvider(BaseProvider):
         handler.wfile.write(json_dumps(resp_obj))
 
     def handle_compact(self, data: Dict[str, Any], handler: Any) -> None:
-        compaction_model = data.get("model", "glm-4.6")
+        compaction_model = data.get("model", config.zai_compaction_model)
 
         messages = data.get("input", [])
         compaction_prompt = data.get(

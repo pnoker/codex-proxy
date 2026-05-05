@@ -167,7 +167,7 @@ class DeepSeekProvider(BaseProvider):
         handler.wfile.write(json_dumps(resp_obj))
 
     def handle_compact(self, data: Dict[str, Any], handler: Any) -> None:
-        compaction_model = data.get("model", "deepseek-chat")
+        compaction_model = data.get("model", config.deepseek_compaction_model)
 
         messages = data.get("input", [])
         compaction_prompt = data.get(

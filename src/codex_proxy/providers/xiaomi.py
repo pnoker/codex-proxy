@@ -165,7 +165,7 @@ class XiaomiProvider(BaseProvider):
         handler.wfile.write(json_dumps(resp_obj))
 
     def handle_compact(self, data: Dict[str, Any], handler: Any) -> None:
-        compaction_model = data.get("model", "mimo-v2.5-pro")
+        compaction_model = data.get("model", config.xiaomi_compaction_model)
 
         messages = data.get("input", [])
         compaction_prompt = data.get(
