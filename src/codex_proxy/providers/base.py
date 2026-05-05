@@ -20,6 +20,11 @@ _FORWARD_HEADERS = (
 )
 
 
+_MAX_429_RETRIES = 5
+_INITIAL_BACKOFF = 1.0
+_MAX_BACKOFF = 30.0
+
+
 class BaseProvider(ABC):
     """Abstract base class for AI model providers."""
 
@@ -61,6 +66,42 @@ class BaseProvider(ABC):
         return headers
 
     # ------------------------------------------------------------------
+    # HTTP request with 429 retry
+    # ------------------------------------------------------------------
+
+    def _post_with_retry(self, url: str, **kwargs) -> requests.Response:
+        backoff = _INITIAL_BACKOFF
+        for attempt in range(_MAX_429_RETRIES + 1):
+            resp = self.session.post(url, **kwargs)
+            if resp.status_code != 429:
+                return resp
+
+            if attempt == _MAX_429_RETRIES:
+                logger.warning(
+                    "[%s] 429 retry exhausted after %d attempts",
+                    self.provider_name, _MAX_429_RETRIES,
+                )
+                return resp
+
+            retry_after = resp.headers.get("Retry-After")
+            if retry_after:
+                try:
+                    wait = min(float(retry_after), _MAX_BACKOFF)
+                except ValueError:
+                    wait = backoff
+            else:
+                wait = backoff
+
+            logger.warning(
+                "[%s] 429 rate limited, retry %d/%d after %.1fs",
+                self.provider_name, attempt + 1, _MAX_429_RETRIES, wait,
+            )
+            time.sleep(wait)
+            backoff = min(backoff * 2, _MAX_BACKOFF)
+
+        return resp  # unreachable but satisfies type checker
+
+    # ------------------------------------------------------------------
     # Shared response handlers
     # ------------------------------------------------------------------
 
@@ -77,7 +118,13 @@ class BaseProvider(ABC):
             handler, payload["model"], created_ts, payload,
             provider_name=self.provider_name,
         )
-        stream_handler.process_stream(resp)
+        try:
+            stream_handler.process_stream(resp)
+        except Exception as e:
+            logger.error(
+                f"Stream error after headers sent for {self.provider_name}: {e}",
+                exc_info=True,
+            )
 
     def _handle_sync_response(
         self, resp: requests.Response, original_data: Dict[str, Any], handler: Any
@@ -204,7 +251,7 @@ class BaseProvider(ABC):
             headers["Authorization"] = auth_header
 
         try:
-            with self.session.post(
+            with self._post_with_retry(
                 self._endpoint(),
                 json=payload,
                 headers=headers,

@@ -62,7 +62,7 @@ class XiaomiProvider(BaseProvider):
         stream = payload.get("stream", False)
 
         try:
-            with self.session.post(
+            with self._post_with_retry(
                 self._endpoint(),
                 json=payload,
                 headers=headers,
