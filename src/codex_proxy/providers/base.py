@@ -152,9 +152,8 @@ class BaseProvider(ABC):
         }
         handler.wfile.write(json_dumps(resp_obj))
         logger.info(
-            "[%s] response: output_items=%d, tokens=%d/%d/%d",
-            self.provider_name,
-            len(output_items),
+            "[%s] << 200 items=%d tokens=%d/%d/%d",
+            self.provider_name, len(output_items),
             resp_obj["usage"]["prompt_tokens"],
             resp_obj["usage"]["completion_tokens"],
             resp_obj["usage"]["total_tokens"],

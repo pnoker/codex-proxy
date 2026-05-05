@@ -193,37 +193,33 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
     def _log_request(provider_name: str, data: dict) -> None:
         messages = data.get("messages", [])
         tools = data.get("tools", [])
-        logger.info(
-            "[%s] model=%s stream=%s messages=%d tools=%d",
-            provider_name,
-            data.get("model", "?"),
-            data.get("stream", False),
-            len(messages),
-            len(tools),
-        )
-        for i, msg in enumerate(messages):
+        parts = [
+            "[%s] %s stream=%s msgs=%d tools=%d"
+            % (
+                provider_name,
+                data.get("model", "?"),
+                data.get("stream", False),
+                len(messages),
+                len(tools),
+            )
+        ]
+        for msg in messages:
             role = msg.get("role", "?")
-            content = msg.get("content") or ""
-            preview = (content[:150] + "...") if len(content) > 150 else content
-            preview = preview.replace("\n", "\\n")
             tc = msg.get("tool_calls")
             if tc:
-                tc_names = [c["function"]["name"] for c in tc if "function" in c]
-                logger.info(
-                    "  [%d] %s: tool_calls=%s", i, role, tc_names,
-                )
+                names = ",".join(c["function"]["name"] for c in tc if "function" in c)
+                parts.append("%s: >>%s" % (role, names))
             else:
-                logger.info("  [%d] %s: %s", i, role, preview)
-            rc = msg.get("reasoning_content")
-            if rc:
-                rc_preview = (rc[:100] + "...") if len(rc) > 100 else rc
-                logger.info("  [%d] %s reasoning: %s", i, role, rc_preview.replace("\n", "\\n"))
+                content = msg.get("content") or ""
+                preview = (content[:80] + "..") if len(content) > 80 else content
+                parts.append("%s: %s" % (role, preview.replace("\n", "\\n")))
         if tools:
-            tool_names = [
+            names = ",".join(
                 t.get("function", {}).get("name", t.get("name", "?"))
                 for t in tools
-            ]
-            logger.info("  tools: %s", tool_names)
+            )
+            parts.append("tools=[%s]" % names)
+        logger.info(" | ".join(parts))
 
     def _handle_models(self):
         custom_models = _load_custom_models()

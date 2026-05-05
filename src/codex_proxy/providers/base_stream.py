@@ -276,11 +276,9 @@ class BaseStreamHandler:
 
     def _finalize(self, response_obj: Dict[str, Any]) -> None:
         logger.info(
-            "[%s] stream done: content=%d chars, reasoning=%d chars, tool_calls=%d",
+            "[%s] << stream content=%d reasoning=%d calls=%d",
             self.provider_name,
-            len(self.full_content),
-            len(self.full_reasoning),
-            len(self.tool_calls),
+            len(self.full_content), len(self.full_reasoning), len(self.tool_calls),
         )
 
         items_to_close: List[tuple] = []
