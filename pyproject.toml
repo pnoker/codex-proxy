@@ -1,6 +1,6 @@
 [project]
 name = "codex-proxy"
-version = "0.1.0"
+version = "0.2.0"
 description = "An OpenAI Responses API proxy for Z.AI, DeepSeek, and Xiaomi providers."
 readme = "README.md"
 requires-python = ">=3.14"
