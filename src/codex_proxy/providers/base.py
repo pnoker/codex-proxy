@@ -202,7 +202,7 @@ class BaseProvider(ABC):
     def handle_compact(
         self, data: Dict[str, Any], handler: BaseHTTPRequestHandler
     ) -> None:
-        compaction_model = data.get("model", self._get_compaction_model())
+        compaction_model = config.get_model(data.get("model", self._get_compaction_model()))
 
         messages = data.get("input", [])
         if isinstance(messages, str):

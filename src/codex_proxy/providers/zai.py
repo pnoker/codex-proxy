@@ -36,7 +36,7 @@ class ZAIProvider(BaseProvider):
 
     def _prepare_payload(self, data: Dict[str, Any]) -> Dict[str, Any]:
         payload = {
-            "model": data.get("model"),
+            "model": config.get_model(data.get("model", "")),
             "messages": data.get("messages", []),
             "stream": data.get("stream", False),
         }

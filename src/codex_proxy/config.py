@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import tomllib
 from dataclasses import dataclass, field
 from .exceptions import ConfigurationError
 
@@ -106,6 +107,7 @@ class Config:
 
     def __post_init__(self):
         self._load_from_file()
+        self._load_codex_toml()
 
     def _load_from_file(self):
         if not os.path.exists(self.config_path):
@@ -141,6 +143,31 @@ class Config:
         except Exception as e:
             logging.warning(f"Failed to load config from {self.config_path}: {e}")
 
+    def _load_codex_toml(self):
+        """Read ~/.codex/config.toml for the global model.
+
+        Priority: config.toml model > env > default.
+        """
+        codex_config_path = os.path.expanduser("~/.codex/config.toml")
+        if not os.path.exists(codex_config_path):
+            return
+        try:
+            with open(codex_config_path, "rb") as f:
+                codex_config = tomllib.load(f)
+            model = codex_config.get("model", "")
+            if model:
+                self.model = model
+        except Exception as e:
+            logging.warning(
+                f"Failed to load codex config from {codex_config_path}: {e}"
+            )
+
+    def get_model(self, fallback: str = "") -> str:
+        """Return the resolved model name.
+
+        Priority: config.toml model > caller-provided fallback (env/CLI).
+        """
+        return self.model or fallback
 
 # Global Config Instance
 config = Config()
