@@ -161,7 +161,7 @@ class ZAIProvider(BaseProvider):
                     "type": "message",
                     "role": "assistant",
                     "status": "completed",
-                    "content": [{"type": "text", "text": message["content"]}],
+                    "content": [{"type": "output_text", "text": message["content"]}],
                 }
             )
 
