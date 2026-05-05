@@ -38,6 +38,7 @@ Configuration lives at `~/.config/codex-proxy/config.json`. Environment variable
 
 | Env Var | Config Key | Description | Default |
 |----------|-------------|-------------|----------|
+| `CODEX_PROXY_HOST` | `host` | Bind address (use `0.0.0.0` for LAN access) | `127.0.0.1` |
 | `CODEX_PROXY_PORT` | `port` | Port to listen on | `8765` |
 | `CODEX_PROXY_LOG_LEVEL` | `log_level` | Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) | `DEBUG` |
 | `CODEX_PROXY_DEBUG` | `debug_mode` | Enable debug mode (logs raw requests) | `true` |

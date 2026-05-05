@@ -19,4 +19,5 @@ services:
         labels: "service=codex-proxy"
     environment:
       - PYTHONUNBUFFERED=1
+      - CODEX_PROXY_HOST=${CODEX_PROXY_HOST:-127.0.0.1}
       - CODEX_PROXY_LOG_LEVEL=${CODEX_PROXY_LOG_LEVEL:-INFO}
