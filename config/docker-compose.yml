@@ -9,13 +9,10 @@ services:
     volumes:
       - ${HOME}/.codex/config.toml:/home/appuser/.codex/config.toml:ro
     restart: unless-stopped
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-        labels: "service=codex-proxy"
+    env_file:
+      - ../.env
     environment:
       - PYTHONUNBUFFERED=1
-      - CODEX_PROXY_HOST=${CODEX_PROXY_HOST:-0.0.0.0}
-      - CODEX_PROXY_LOG_LEVEL=${CODEX_PROXY_LOG_LEVEL:-INFO}
+      - CODEX_PROXY_HOST=0.0.0.0
+      - CODEX_PROXY_LOG_LEVEL=INFO
+      - CODEX_PROXY_LOG_FILE=
