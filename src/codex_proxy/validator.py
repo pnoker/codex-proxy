@@ -1,11 +1,8 @@
 """Input validation for codex-proxy requests."""
 
-import logging
 from typing import Dict, Any, List
 
 from .exceptions import ValidationError
-
-logger = logging.getLogger(__name__)
 
 
 class RequestValidator:
@@ -60,8 +57,6 @@ class RequestValidator:
         if "/compact" in path:
             RequestValidator._validate_compact_request(data)
 
-        logger.debug("Request validation passed")
-
     @staticmethod
     def _validate_model(model: str) -> None:
         """Validate model name format."""
@@ -79,7 +74,7 @@ class RequestValidator:
                 raise ValidationError(f"Message {i} missing required field 'role'")
 
             role = msg["role"]
-            valid_roles = ("system", "user", "assistant", "developer")
+            valid_roles = ("system", "user", "assistant", "developer", "tool")
             if role not in valid_roles:
                 raise ValidationError(f"Message {i} has invalid role: {role}")
 

@@ -19,12 +19,6 @@ class ConfigurationError(ProxyError):
     pass
 
 
-class AuthenticationError(ProxyError):
-    """Exception raised when authentication fails."""
-
-    pass
-
-
 class ValidationError(ProxyError):
     """Exception raised when input validation fails."""
 

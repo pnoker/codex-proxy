@@ -1,3 +1,4 @@
+import copy
 import json
 import logging
 from typing import Dict, Any, List
@@ -11,6 +12,7 @@ class RequestNormalizer:
     @staticmethod
     def normalize(data: Dict[str, Any]) -> Dict[str, Any]:
         """Normalize the request data."""
+        data = copy.copy(data)
         messages = []
 
         # 1. Handle Instructions (System Prompt)

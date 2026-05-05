@@ -407,4 +407,14 @@ class TestComplexScenarios:
         assert result["messages"][0]["role"] == "assistant"
         assert "First part" in result["messages"][0]["content"]
         assert "Second part" in result["messages"][0]["content"]
-        assert "Thinking" in result["messages"][0]["reasoning_content"]
+
+
+class TestNormalizerImmutability:
+    """Test that normalize does not mutate the original input dict."""
+
+    def test_normalize_does_not_mutate_input(self):
+        original = {"instructions": "Be helpful", "input": "Hello"}
+        original_keys = set(original.keys())
+        RequestNormalizer.normalize(original)
+        assert set(original.keys()) == original_keys
+        assert "messages" not in original

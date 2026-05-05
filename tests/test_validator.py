@@ -73,6 +73,15 @@ class TestMessageValidation:
             RequestValidator.validate_request(data, "/v1/responses")
         assert "must have 'content' or 'text'" in str(exc.value)
 
+    def test_tool_role_message_passes(self):
+        """Test that tool role messages pass validation."""
+        data = {
+            "messages": [
+                {"role": "tool", "tool_call_id": "call_123", "content": "result"},
+            ]
+        }
+        RequestValidator.validate_request(data, "/v1/responses")
+
     def test_non_object_message_fails(self):
         """Test that non-object message fails validation."""
         data = {"messages": ["not an object"]}

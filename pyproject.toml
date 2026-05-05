@@ -3,7 +3,7 @@ name = "codex-proxy"
 version = "0.2.0"
 description = "An OpenAI Responses API proxy for Z.AI, DeepSeek, and Xiaomi providers."
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 dependencies = [
     "requests>=2.31.0",
     "urllib3>=2.0.0",
