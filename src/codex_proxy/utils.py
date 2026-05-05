@@ -1,6 +1,8 @@
 import json
 import logging
+import os
 import sys
+from logging.handlers import RotatingFileHandler
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -29,14 +31,24 @@ except ImportError:
 def setup_logging():
     """Configure structured logging."""
     root = logging.getLogger()
+    if root.handlers:
+        return
     root.setLevel(config.log_level)
 
-    handler = logging.StreamHandler(sys.stderr)
     formatter = logging.Formatter(
         "%(asctime)s %(levelname)s %(name)s: %(message)s", datefmt="%Y-%m-%dT%H:%M:%SZ"
     )
+
+    handler = logging.StreamHandler(sys.stderr)
     handler.setFormatter(formatter)
     root.addHandler(handler)
+
+    log_file = os.environ.get("CODEX_PROXY_LOG_FILE")
+    if log_file:
+        os.makedirs(os.path.dirname(log_file), exist_ok=True)
+        fh = RotatingFileHandler(log_file, maxBytes=10 * 1024 * 1024, backupCount=5)
+        fh.setFormatter(formatter)
+        root.addHandler(fh)
 
     # Silence noisy libs
     logging.getLogger("urllib3").setLevel(logging.WARNING)

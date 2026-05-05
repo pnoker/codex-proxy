@@ -38,6 +38,7 @@ class Config:
     request_timeout_connect: int = 10
     request_timeout_read: int = 600
     compaction_temperature: float = 0.1
+    compaction_max_tokens: int = 4096
 
     # Z.AI
     zai_url: str = field(
