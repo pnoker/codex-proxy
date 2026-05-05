@@ -1,3 +1,4 @@
+import copy
 import logging
 from typing import Dict, Any
 from .base import BaseProvider
@@ -61,9 +62,10 @@ class ZAIProvider(BaseProvider):
             for tool in payload["tools"]:
                 ttype = tool.get("type")
                 if ttype == "function":
-                    if "strict" in tool:
-                        del tool["strict"]
-                    transformed_tools.append(tool)
+                    t = copy.deepcopy(tool)
+                    if "strict" in t:
+                        del t["strict"]
+                    transformed_tools.append(t)
                 elif ttype == "web_search":
                     transformed_tools.append(
                         {
@@ -89,7 +91,7 @@ class ZAIProvider(BaseProvider):
         stream = payload.get("stream", False)
 
         try:
-            with self.session.post(
+            with self._post_with_retry(
                 self._endpoint(),
                 json=payload,
                 headers=headers,
