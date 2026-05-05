@@ -222,7 +222,7 @@ class RequestNormalizer:
                 if isinstance(part, str):
                     content += part
                 elif isinstance(part, dict):
-                    if part.get("type") in ("input_text", "text"):
+                    if part.get("type") in ("input_text", "text", "output_text"):
                         content += part.get("text", "")
 
         if not content and item.get("stderr"):
