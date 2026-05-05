@@ -211,8 +211,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
                 parts.append("%s: >>%s" % (role, names))
             else:
                 content = msg.get("content") or ""
-                preview = (content[:80] + "..") if len(content) > 80 else content
-                parts.append("%s: %s" % (role, preview.replace("\n", "\\n")))
+                parts.append("%s: %s" % (role, content.replace("\n", "\\n")))
         if tools:
             names = ",".join(
                 t.get("function", {}).get("name", t.get("name", "?"))
