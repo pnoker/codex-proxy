@@ -9,6 +9,29 @@ from ..utils import json_dumps, json_loads
 logger = logging.getLogger(__name__)
 
 
+def convert_shell_call(item: Dict[str, Any]) -> None:
+    """Convert a function_call item to local_shell_call if it's a shell command.
+
+    Shared between sync response mapping and stream finalization.
+    """
+    if item.get("type") != "function_call":
+        return
+    if item.get("name") not in ("shell", "container.exec", "shell_command"):
+        return
+    item["type"] = "local_shell_call"
+    try:
+        args = item.get("arguments", "{}")
+        if isinstance(args, str):
+            args = json_loads(args)
+        if isinstance(args, dict):
+            item["action"] = {
+                "type": "exec",
+                "command": args.get("command", []),
+            }
+    except (ValueError, TypeError, KeyError):
+        pass
+
+
 class BaseStreamHandler:
     """Maps an upstream SSE stream to Codex Responses API events.
 
@@ -336,21 +359,7 @@ class BaseStreamHandler:
         for out_idx, item in items_to_close:
             item["status"] = item_status
 
-            if item.get("type") == "function_call":
-                if item["name"] in (
-                    "shell",
-                    "container.exec",
-                    "shell_command",
-                ):
-                    item["type"] = "local_shell_call"
-                    try:
-                        args = json_loads(item["arguments"])
-                        item["action"] = {
-                            "type": "exec",
-                            "command": args.get("command", []),
-                        }
-                    except (ValueError, TypeError, KeyError):
-                        pass
+            convert_shell_call(item)
 
             if completed:
                 self._emit_content_done_events(out_idx, item)

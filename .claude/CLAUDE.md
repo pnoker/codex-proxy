@@ -1,5 +1,7 @@
 # codex-proxy
 
+不要自动 git commit，除非我明确要求提交。
+
 OpenAI Responses API 代理服务，将 Codex CLI 的请求翻译成 Z.AI / DeepSeek / Xiaomi 的 API 格式，再将响应转回 Codex 兼容的 SSE 事件流。
 
 ## 技术栈

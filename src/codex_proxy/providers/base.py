@@ -5,8 +5,8 @@ from abc import ABC, abstractmethod
 from http.server import BaseHTTPRequestHandler
 from typing import Any, Dict
 
-from .base_stream import BaseStreamHandler
-from ..utils import create_session, json_loads, json_dumps
+from .base_stream import BaseStreamHandler, convert_shell_call
+from ..utils import create_session, json_dumps
 from ..config import config
 
 logger = logging.getLogger(__name__)
@@ -159,18 +159,7 @@ class BaseProvider(ABC):
                     "arguments": tc["function"]["arguments"],
                     "call_id": tc.get("id"),
                 }
-                if item["name"] in ("shell", "container.exec", "shell_command"):
-                    item["type"] = "local_shell_call"
-                    try:
-                        args = tc["function"]["arguments"]
-                        if isinstance(args, str):
-                            args = json_loads(args)
-                        item["action"] = {
-                            "type": "exec",
-                            "command": args.get("command", []),
-                        }
-                    except (ValueError, TypeError, KeyError):
-                        pass
+                convert_shell_call(item)
                 output_items.append(item)
 
         if message.get("content"):
