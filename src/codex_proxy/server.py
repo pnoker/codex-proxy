@@ -115,7 +115,10 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             self.send_error(500, str(e))
         except Exception as e:
             logger.critical(f"Unexpected error: {e}", exc_info=True)
-            self.send_error(500, "Internal server error")
+            try:
+                self.send_error(500, "Internal server error")
+            except Exception:
+                logger.critical("Could not send error response (headers already sent)")
 
     def _handle_post(self):
         logger.info(f"POST {self.path}")
