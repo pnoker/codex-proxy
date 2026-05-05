@@ -134,6 +134,8 @@ class RequestNormalizer:
             "commandExecutionOutput",
             "fileChangeOutput",
             "custom_tool_call_output",
+            "local_shell_call_output",
+            "web_search_call_output",
         ):
             RequestNormalizer._process_tool_output(item, messages)
 
