@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 class ZAIStreamHandler:
-    """Manages the mapping of ZAI stream to Codex Responses API events."""
+    """Maps ZAI SSE stream to Codex Responses API events."""
 
     def __init__(
         self,
@@ -26,6 +26,9 @@ class ZAIStreamHandler:
         self.seq_num = 0
 
         self.full_content = ""
+        self.full_reasoning = ""
+        self.reasoning_item: Optional[Dict[str, Any]] = None
+        self.reasoning_idx: int = -1
         self.message: Optional[Dict[str, Any]] = None
         self.message_idx: int = -1
         self.idx: int = 0
@@ -34,7 +37,6 @@ class ZAIStreamHandler:
         self.output_items: List[Dict[str, Any]] = []
 
     def _send_event(self, evt_type: str, data: Dict[str, Any]) -> None:
-        """Serialize and send a single SSE event."""
         self.seq_num += 1
         event = {
             "id": f"evt_{int(time.time() * 1000)}_{self.seq_num}",
@@ -51,8 +53,6 @@ class ZAIStreamHandler:
         self.handler.wfile.flush()
 
     def process_stream(self, resp: requests.Response) -> None:
-        """Main loop for processing the ZAI stream."""
-        # Rich response object for created event
         response_obj = {
             "id": self.resp_id,
             "object": "response",
@@ -75,10 +75,8 @@ class ZAIStreamHandler:
             for line in resp.iter_lines():
                 if not line or not line.startswith(b"data: "):
                     continue
-
                 if line == b"data: [DONE]":
                     break
-
                 self._handle_line(line[6:])
         except Exception as e:
             logger.error(f"Error in ZAI stream processing: {e}")
@@ -86,11 +84,8 @@ class ZAIStreamHandler:
             self._finalize(response_obj)
 
     def _handle_line(self, json_data: bytes) -> None:
-        """Parse a single ZAI stream line and emit corresponding Codex events."""
         try:
             data = json_loads(json_data)
-
-            # Debug log for raw ZAI stream
             logger.debug(f"ZAI STREAM DELTA: {data}")
 
             choices = data.get("choices", [])
@@ -99,7 +94,6 @@ class ZAIStreamHandler:
             choice = choices[0]
             delta = choice.get("delta", {})
 
-            # 1. Handle Tool Calls
             if "tool_calls" in delta:
                 for tc_delta in delta["tool_calls"]:
                     idx = tc_delta.get("index", 0)
@@ -137,12 +131,32 @@ class ZAIStreamHandler:
                     if "arguments" in fn_delta:
                         args_part = fn_delta["arguments"]
                         if isinstance(args_part, dict):
-                            # If they sent an object instead of a string, stringify it
                             args_part = json_dumps(args_part)
                         tc["arguments"] += args_part
 
-            # 2. Handle Content
-            content = delta.get("content", "")
+            # Handle reasoning content as separate item
+            reasoning = delta.get("reasoning_content") or ""
+            if reasoning:
+                self.full_reasoning += reasoning
+
+                if self.reasoning_item is None:
+                    self._init_reasoning()
+
+                self._send_event(
+                    "response.reasoning_summary_text.delta",
+                    {
+                        "response_id": self.resp_id,
+                        "item_id": self.reasoning_item_id,
+                        "output_index": self.reasoning_idx,
+                        "summary_index": 0,
+                        "delta": reasoning,
+                    },
+                )
+                if self.reasoning_item:
+                    self.reasoning_item["summary"][0]["text"] = self.full_reasoning
+
+            # Handle content (actual response text)
+            content = delta.get("content") or ""
             if content:
                 self.full_content += content
 
@@ -165,8 +179,26 @@ class ZAIStreamHandler:
         except Exception as e:
             logger.debug(f"Failed to parse ZAI stream line: {e}")
 
+    def _init_reasoning(self) -> None:
+        self.reasoning_idx = self.idx
+        self.idx += 1
+        self.reasoning_item_id = f"rs_{int(time.time() * 1000)}_{self.reasoning_idx}"
+        self.reasoning_item = {
+            "id": self.reasoning_item_id,
+            "type": "reasoning",
+            "status": "in_progress",
+            "summary": [{"type": "summary_text", "text": ""}],
+        }
+        self._send_event(
+            "response.output_item.added",
+            {
+                "response_id": self.resp_id,
+                "output_index": self.reasoning_idx,
+                "item": self.reasoning_item,
+            },
+        )
+
     def _init_message(self) -> None:
-        """Initialize the assistant message item."""
         self.message_idx = self.idx
         self.idx += 1
         self.item_id = f"msg_{int(time.time() * 1000)}_{self.message_idx}"
@@ -187,8 +219,9 @@ class ZAIStreamHandler:
         )
 
     def _finalize(self, response_obj: Dict[str, Any]) -> None:
-        """Emit completion events and close the response."""
         items_to_close = []
+        if self.reasoning_item:
+            items_to_close.append((self.reasoning_idx, self.reasoning_item))
         if self.message:
             items_to_close.append((self.message_idx, self.message))
         for tc_data in self.tool_calls.values():
@@ -237,6 +270,5 @@ def stream_responses_loop(
     created_ts: int,
     request_metadata: Optional[Dict[str, Any]] = None,
 ) -> None:
-    """Wrapper function matching the existing interface."""
     stream_handler = ZAIStreamHandler(handler, model, created_ts, request_metadata)
     stream_handler.process_stream(resp)

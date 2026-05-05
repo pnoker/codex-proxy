@@ -16,14 +16,18 @@ class ZAIProvider(BaseProvider):
     def __init__(self):
         self.session = create_session()
 
+    def _endpoint(self) -> str:
+        url = config.zai_url.rstrip("/")
+        if not url.endswith("/chat/completions"):
+            url += "/chat/completions"
+        return url
+
     def handle_request(self, data: Dict[str, Any], handler: Any) -> None:
-        """Entry point for Z.AI requests."""
         payload = self._prepare_payload(data)
         self._transform_payload(payload)
         self._execute_request(payload, data, handler)
 
     def _prepare_payload(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Create a clean payload with only supported parameters."""
         payload = {
             "model": data.get("model"),
             "messages": data.get("messages", []),
@@ -42,24 +46,19 @@ class ZAIProvider(BaseProvider):
         return payload
 
     def _transform_payload(self, payload: Dict[str, Any]) -> None:
-        """Apply Z.AI specific transformations."""
-        # 1. Fix Roles
         for m in payload.get("messages", []):
             if m.get("role") == "developer":
                 m["role"] = "system"
 
-        # 2. Transform and Clean Tools
         if "tools" in payload and payload["tools"]:
             transformed_tools = []
             for tool in payload["tools"]:
                 ttype = tool.get("type")
                 if ttype == "function":
-                    # Remove non-standard "strict" property
                     if "strict" in tool:
                         del tool["strict"]
                     transformed_tools.append(tool)
                 elif ttype == "web_search":
-                    # Transform Codex web_search to Z.AI format
                     transformed_tools.append(
                         {
                             "type": "web_search",
@@ -69,23 +68,20 @@ class ZAIProvider(BaseProvider):
                             },
                         }
                     )
-                # Drop retrieval for now as it needs knowledge_id
-
             payload["tools"] = transformed_tools
 
     def _execute_request(
         self, payload: Dict[str, Any], original_data: Dict[str, Any], handler: Any
     ) -> None:
-        """Perform the actual API call and handle response."""
         auth_header = handler.headers.get("Authorization")
-        if config.z_ai_api_key:
-            auth_header = f"Bearer {config.z_ai_api_key}"
+        if config.zai_api_key:
+            auth_header = f"Bearer {config.zai_api_key}"
 
         stream = payload.get("stream", False)
 
         try:
             with self.session.post(
-                config.z_ai_url,
+                self._endpoint(),
                 json=payload,
                 headers={"Authorization": auth_header} if auth_header else {},
                 stream=stream,
@@ -103,7 +99,6 @@ class ZAIProvider(BaseProvider):
     def _handle_stream_response(
         self, resp: requests.Response, payload: Dict[str, Any], handler: Any
     ) -> None:
-        """Manage streaming response forwarding."""
         handler.send_response(resp.status_code)
         handler.send_header("Content-Type", "text/event-stream; charset=utf-8")
         handler.send_header("Connection", "keep-alive")
@@ -115,7 +110,6 @@ class ZAIProvider(BaseProvider):
     def _handle_sync_response(
         self, resp: requests.Response, original_data: Dict[str, Any], handler: Any
     ) -> None:
-        """Manage synchronous response forwarding."""
         handler.send_response(resp.status_code)
         handler.send_header("Content-Type", "application/json")
         handler.end_headers()
@@ -130,13 +124,11 @@ class ZAIProvider(BaseProvider):
         handler.wfile.write(resp.content)
 
     def _write_mapped_response(self, resp: requests.Response, handler: Any) -> None:
-        """Map ZAI standard chat response to Codex Responses API format."""
         z_data = resp.json()
         choice = z_data["choices"][0]
         message = choice["message"]
         usage = z_data.get("usage", {})
 
-        # Map tool calls if present
         output_items = []
         if "tool_calls" in message:
             for tc in message["tool_calls"]:
@@ -148,7 +140,6 @@ class ZAIProvider(BaseProvider):
                     "arguments": json_dumps(tc["function"]["arguments"]),
                     "call_id": tc.get("id"),
                 }
-                # Parity with Gemini shell mapping
                 if item["name"] in ("shell", "container.exec", "shell_command"):
                     item["type"] = "local_shell_call"
                     try:
@@ -163,7 +154,6 @@ class ZAIProvider(BaseProvider):
                         pass
                 output_items.append(item)
 
-        # Map content if present
         if message.get("content"):
             output_items.append(
                 {
@@ -191,10 +181,7 @@ class ZAIProvider(BaseProvider):
         handler.wfile.write(json_dumps(resp_obj))
 
     def handle_compact(self, data: Dict[str, Any], handler: Any) -> None:
-        """Handle context compaction using configured compaction model."""
-        compaction_model = data.get(
-            "model", config.models[0] if config.models else "glm-4.6"
-        )
+        compaction_model = data.get("model", "glm-4.6")
 
         messages = data.get("input", [])
         compaction_prompt = data.get(
@@ -217,12 +204,12 @@ class ZAIProvider(BaseProvider):
         }
 
         auth_header = handler.headers.get("Authorization")
-        if not auth_header and config.z_ai_api_key:
-            auth_header = f"Bearer {config.z_ai_api_key}"
+        if not auth_header and config.zai_api_key:
+            auth_header = f"Bearer {config.zai_api_key}"
 
         try:
             with self.session.post(
-                config.z_ai_url,
+                self._endpoint(),
                 json=payload,
                 headers={"Authorization": auth_header} if auth_header else {},
                 timeout=(config.request_timeout_connect, config.request_timeout_read),
