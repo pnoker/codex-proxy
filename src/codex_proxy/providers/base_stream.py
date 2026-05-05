@@ -1,3 +1,4 @@
+import json as _json
 import time
 import logging
 import requests
@@ -111,7 +112,6 @@ class BaseStreamHandler:
     def _handle_line(self, json_data: bytes) -> None:
         try:
             data = json_loads(json_data)
-            logger.debug(f"{self.provider_name} STREAM DELTA: {data}")
 
             choices = data.get("choices", [])
             if not choices:
@@ -182,7 +182,9 @@ class BaseStreamHandler:
             if "arguments" in fn_delta:
                 args_part = fn_delta["arguments"]
                 if isinstance(args_part, dict):
-                    args_part = json_dumps(args_part)
+                    args_part = _json.dumps(args_part)
+                elif isinstance(args_part, bytes):
+                    args_part = args_part.decode("utf-8")
                 tc["arguments"] += args_part
 
     def _handle_reasoning(self, chunk: str) -> None:
@@ -273,6 +275,14 @@ class BaseStreamHandler:
     # ------------------------------------------------------------------
 
     def _finalize(self, response_obj: Dict[str, Any]) -> None:
+        logger.info(
+            "[%s] stream done: content=%d chars, reasoning=%d chars, tool_calls=%d",
+            self.provider_name,
+            len(self.full_content),
+            len(self.full_reasoning),
+            len(self.tool_calls),
+        )
+
         items_to_close: List[tuple] = []
         if self.reasoning_item:
             items_to_close.append((self.reasoning_idx, self.reasoning_item))

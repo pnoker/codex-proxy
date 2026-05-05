@@ -1,11 +1,7 @@
-import time
 import logging
-import requests
 from typing import Dict, Any
 from .base import BaseProvider
-from ..utils import create_session, json_loads, json_dumps
 from ..config import config
-from .zai_stream import stream_responses_loop
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +10,17 @@ class ZAIProvider(BaseProvider):
     """Provider for Z.AI GLM models."""
 
     def __init__(self):
-        self.session = create_session()
+        super().__init__(provider_name="ZAI", id_prefix="zai_")
+
+    @property
+    def _use_passthrough_auth(self) -> bool:
+        return True
+
+    def _get_api_key(self) -> str:
+        return config.zai_api_key
+
+    def _get_compaction_model(self) -> str:
+        return config.zai_compaction_model
 
     def _endpoint(self) -> str:
         url = config.zai_url.rstrip("/")
@@ -73,9 +79,12 @@ class ZAIProvider(BaseProvider):
     def _execute_request(
         self, payload: Dict[str, Any], original_data: Dict[str, Any], handler: Any
     ) -> None:
+        headers = self._build_headers(original_data)
         auth_header = handler.headers.get("Authorization")
         if config.zai_api_key:
             auth_header = f"Bearer {config.zai_api_key}"
+        if auth_header:
+            headers["Authorization"] = auth_header
 
         stream = payload.get("stream", False)
 
@@ -83,7 +92,7 @@ class ZAIProvider(BaseProvider):
             with self.session.post(
                 self._endpoint(),
                 json=payload,
-                headers={"Authorization": auth_header} if auth_header else {},
+                headers=headers,
                 stream=stream,
                 timeout=(config.request_timeout_connect, config.request_timeout_read),
             ) as resp:
@@ -94,144 +103,4 @@ class ZAIProvider(BaseProvider):
                     self._handle_sync_response(resp, original_data, handler)
         except Exception as e:
             logger.error(f"ZAI Request failed: {e}")
-            raise e
-
-    def _handle_stream_response(
-        self, resp: requests.Response, payload: Dict[str, Any], handler: Any
-    ) -> None:
-        handler.send_response(resp.status_code)
-        handler.send_header("Content-Type", "text/event-stream; charset=utf-8")
-        handler.send_header("Connection", "keep-alive")
-        handler.end_headers()
-
-        created_ts = int(time.time())
-        stream_responses_loop(resp, handler, payload["model"], created_ts, payload)
-
-    def _handle_sync_response(
-        self, resp: requests.Response, original_data: Dict[str, Any], handler: Any
-    ) -> None:
-        handler.send_response(resp.status_code)
-        handler.send_header("Content-Type", "application/json")
-        handler.end_headers()
-
-        if original_data.get("_is_responses_api") and resp.status_code == 200:
-            try:
-                self._write_mapped_response(resp, handler)
-                return
-            except Exception as e:
-                logger.warning(f"Failed to map ZAI response: {e}")
-
-        handler.wfile.write(resp.content)
-
-    def _write_mapped_response(self, resp: requests.Response, handler: Any) -> None:
-        z_data = resp.json()
-        choice = z_data["choices"][0]
-        message = choice["message"]
-        usage = z_data.get("usage", {})
-
-        output_items = []
-        if "tool_calls" in message:
-            for tc in message["tool_calls"]:
-                item = {
-                    "id": tc.get("id"),
-                    "type": "function_call",
-                    "status": "completed",
-                    "name": tc["function"]["name"],
-                    "arguments": json_dumps(tc["function"]["arguments"]),
-                    "call_id": tc.get("id"),
-                }
-                if item["name"] in ("shell", "container.exec", "shell_command"):
-                    item["type"] = "local_shell_call"
-                    try:
-                        args = tc["function"]["arguments"]
-                        if isinstance(args, str):
-                            args = json_loads(args)
-                        item["action"] = {
-                            "type": "exec",
-                            "command": args.get("command", []),
-                        }
-                    except (ValueError, TypeError, KeyError):
-                        pass
-                output_items.append(item)
-
-        if message.get("content"):
-            output_items.append(
-                {
-                    "id": f"msg_{int(time.time() * 1000)}",
-                    "type": "message",
-                    "role": "assistant",
-                    "status": "completed",
-                    "content": [{"type": "output_text", "text": message["content"]}],
-                }
-            )
-
-        resp_obj = {
-            "id": f"zai_{z_data.get('id')}",
-            "object": "response",
-            "created": z_data.get("created"),
-            "model": z_data.get("model"),
-            "status": "completed",
-            "usage": {
-                "prompt_tokens": usage.get("prompt_tokens", 0),
-                "completion_tokens": usage.get("completion_tokens", 0),
-                "total_tokens": usage.get("total_tokens", 0),
-            },
-            "output": output_items,
-        }
-        handler.wfile.write(json_dumps(resp_obj))
-
-    def handle_compact(self, data: Dict[str, Any], handler: Any) -> None:
-        compaction_model = data.get("model", config.zai_compaction_model)
-
-        messages = data.get("input", [])
-        compaction_prompt = data.get(
-            "instructions", "Summarize the conversation history concisely."
-        )
-
-        messages.append(
-            {
-                "role": "user",
-                "content": f"Perform context compaction. instructions: {compaction_prompt}",
-            }
-        )
-
-        payload = {
-            "model": compaction_model,
-            "messages": messages,
-            "stream": False,
-            "temperature": config.compaction_temperature,
-            "max_tokens": config.request_timeout_read,
-        }
-
-        auth_header = handler.headers.get("Authorization")
-        if not auth_header and config.zai_api_key:
-            auth_header = f"Bearer {config.zai_api_key}"
-
-        try:
-            with self.session.post(
-                self._endpoint(),
-                json=payload,
-                headers={"Authorization": auth_header} if auth_header else {},
-                timeout=(config.request_timeout_connect, config.request_timeout_read),
-            ) as resp:
-                if resp.status_code != 200:
-                    logger.error(f"Compaction request failed: {resp.status_code}")
-                    handler.send_error(resp.status_code, resp.text)
-                    return
-
-                z_data = resp.json()
-                choice = z_data.get("choices", [{}])[0]
-                final_text = choice.get("message", {}).get("content", "")
-
-                result = {
-                    "output": [{"type": "compaction", "encrypted_content": final_text}]
-                }
-
-                handler.send_response(200)
-                handler.send_header("Content-Type", "application/json")
-                handler.end_headers()
-                handler.wfile.write(json_dumps(result))
-
-        except Exception as e:
-            logger.error(f"Compaction failed: {e}")
-            handler.send_error(500, str(e))
+            raise

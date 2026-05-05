@@ -33,8 +33,20 @@ class TestBaseProvider:
         # ZAIProvider overrides handle_compact, so this should work
         # But BaseProvider's default sends 501
         class MinimalProvider(BaseProvider):
+            def __init__(self):
+                super().__init__(provider_name="test", id_prefix="test_")
+
             def handle_request(self, data, handler):
                 pass
+
+            def _endpoint(self):
+                return ""
+
+            def _get_api_key(self):
+                return ""
+
+            def _get_compaction_model(self):
+                return ""
 
         mp = MinimalProvider()
         mock_handler = MockHandler()
