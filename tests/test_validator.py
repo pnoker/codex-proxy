@@ -107,12 +107,10 @@ class TestToolValidation:
             RequestValidator.validate_request(data, "/v1/responses")
         assert "missing required field 'type'" in str(exc.value)
 
-    def test_invalid_tool_type_fails(self):
-        """Test that invalid tool type fails validation."""
-        data = {"tools": [{"type": "invalid"}]}
-        with pytest.raises(ValidationError) as exc:
-            RequestValidator.validate_request(data, "/v1/responses")
-        assert "invalid type" in str(exc.value)
+    def test_unknown_tool_type_passes(self):
+        """Test that unknown tool types pass validation (passed through to provider)."""
+        data = {"tools": [{"type": "namespace"}]}
+        RequestValidator.validate_request(data, "/v1/responses")
 
     def test_non_object_tool_fails(self):
         """Test that non-object tool fails validation."""

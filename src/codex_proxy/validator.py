@@ -99,11 +99,6 @@ class RequestValidator:
             if "type" not in tool:
                 raise ValidationError(f"Tool {i} missing required field 'type'")
 
-            tool_type = tool["type"]
-            valid_types = ("function", "web_search", "retrieval")
-            if tool_type not in valid_types:
-                raise ValidationError(f"Tool {i} has invalid type: {tool_type}")
-
     @staticmethod
     def _validate_compact_request(data: Dict[str, Any]) -> None:
         """Validate compaction-specific requests."""

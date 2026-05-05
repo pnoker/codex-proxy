@@ -82,7 +82,7 @@ _HTML = """<!DOCTYPE html>
   .field input[type="password"] { letter-spacing: 2px; }
   .field input[type="number"] { width: 120px; }
   .field input[type="checkbox"] { width: 18px; height: 18px; margin-top: 5px; cursor: pointer; accent-color: var(--accent); }
-  .field .toggle-eye {
+  .toggle-eye {
     position: relative; display: flex; gap: 6px;
   }
   .toggle-eye input { flex: 1; }
@@ -92,22 +92,6 @@ _HTML = """<!DOCTYPE html>
     transition: border-color 0.15s;
   }
   .toggle-eye button:hover { border-color: var(--accent); color: var(--text); }
-  .tag-input-wrap { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 10px;
-    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
-    cursor: text; min-height: 36px; align-items: center; }
-  .tag-input-wrap:focus-within { border-color: var(--accent); }
-  .tag {
-    background: #252840; border: 1px solid #3a3d5c; color: var(--text);
-    padding: 2px 8px; border-radius: 99px; font-size: 12px;
-    display: flex; align-items: center; gap: 4px; font-family: var(--mono);
-  }
-  .tag button { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; line-height: 1; padding: 0 1px; }
-  .tag button:hover { color: var(--error); }
-  .tag-input-wrap input {
-    background: none; border: none; color: var(--text); outline: none;
-    font-family: var(--mono); font-size: 13px; min-width: 80px; flex: 1;
-    padding: 0;
-  }
   .actions { display: flex; gap: 12px; margin-top: 24px; justify-content: flex-end; }
   button.primary {
     background: var(--accent); color: #fff; border: none;
@@ -162,37 +146,52 @@ _HTML = """<!DOCTYPE html>
   </section>
 
   <section>
-    <h2>Authentication</h2>
+    <h2>Z.AI</h2>
     <div class="card">
       <div class="field">
-        <label>Z.AI API key <small>CODEX_PROXY_ZAI_API_KEY</small></label>
+        <label>API key <small>CODEX_PROXY_ZAI_API_KEY</small></label>
         <div class="toggle-eye">
-          <input type="password" id="z_ai_api_key" name="z_ai_api_key" placeholder="sk-…">
-          <button type="button" onclick="togglePw('z_ai_api_key', this)">show</button>
+          <input type="password" id="zai_api_key" name="zai_api_key" placeholder="aca…">
+          <button type="button" onclick="togglePw('zai_api_key', this)">show</button>
         </div>
       </div>
       <div class="field">
-        <label>Gemini API key <small>CODEX_PROXY_GEMINI_API_KEY</small></label>
-        <div class="toggle-eye">
-          <input type="password" id="gemini_api_key" name="gemini_api_key" placeholder="AIza…">
-          <button type="button" onclick="togglePw('gemini_api_key', this)">show</button>
-        </div>
+        <label>Base URL <small>CODEX_PROXY_ZAI_URL</small></label>
+        <input type="text" id="zai_url" name="zai_url" placeholder="https://api.z.ai/api/coding/paas/v4">
       </div>
     </div>
   </section>
 
   <section>
-    <h2>Models</h2>
+    <h2>DeepSeek</h2>
     <div class="card">
       <div class="field">
-        <label>Allowed models <small>comma-separated, empty&nbsp;= any</small></label>
-        <div id="models-wrap" class="tag-input-wrap" onclick="document.getElementById('models-raw').focus()">
-          <input id="models-raw" placeholder="add model…" autocomplete="off">
+        <label>API key <small>CODEX_PROXY_DEEPSEEK_API_KEY</small></label>
+        <div class="toggle-eye">
+          <input type="password" id="deepseek_api_key" name="deepseek_api_key" placeholder="sk-…">
+          <button type="button" onclick="togglePw('deepseek_api_key', this)">show</button>
         </div>
       </div>
       <div class="field">
-        <label>Compaction model</label>
-        <input type="text" id="compaction_model" name="compaction_model" placeholder="e.g. glm-4.6">
+        <label>Base URL <small>CODEX_PROXY_DEEPSEEK_URL</small></label>
+        <input type="text" id="deepseek_url" name="deepseek_url" placeholder="https://api.deepseek.com">
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Xiaomi</h2>
+    <div class="card">
+      <div class="field">
+        <label>API key <small>CODEX_PROXY_XIAOMI_API_KEY</small></label>
+        <div class="toggle-eye">
+          <input type="password" id="xiaomi_api_key" name="xiaomi_api_key" placeholder="sk-…">
+          <button type="button" onclick="togglePw('xiaomi_api_key', this)">show</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Base URL <small>CODEX_PROXY_XIAOMI_URL</small></label>
+        <input type="text" id="xiaomi_url" name="xiaomi_url" placeholder="https://api.llm.mioffice.cn/v1">
       </div>
     </div>
   </section>
@@ -211,23 +210,6 @@ _HTML = """<!DOCTYPE html>
     </div>
   </section>
 
-  <section>
-    <h2>Reasoning</h2>
-    <div class="card">
-      <div class="field">
-        <label>Default effort</label>
-        <select id="reasoning_effort" name="reasoning_effort">
-          <option value="none">none</option>
-          <option value="minimal">minimal</option>
-          <option value="low">low</option>
-          <option value="medium">medium</option>
-          <option value="high">high</option>
-          <option value="xhigh">xhigh</option>
-        </select>
-      </div>
-    </div>
-  </section>
-
   <div class="actions">
     <button type="button" class="secondary" onclick="load()">Reset</button>
     <button type="submit" class="primary">Save to disk</button>
@@ -235,11 +217,10 @@ _HTML = """<!DOCTYPE html>
 </form>
 </main>
 <script>
-const FIELDS_TEXT = ['z_ai_api_key','gemini_api_key','compaction_model'];
+const FIELDS_TEXT = ['zai_api_key','zai_url','deepseek_api_key','deepseek_url','xiaomi_api_key','xiaomi_url'];
 const FIELDS_NUM  = ['port','request_timeout_connect','request_timeout_read'];
-const FIELDS_SEL  = ['log_level','reasoning_effort'];
+const FIELDS_SEL  = ['log_level'];
 const FIELDS_BOOL = ['debug_mode'];
-let modelTags = [];
 
 function togglePw(id, btn) {
   const el = document.getElementById(id);
@@ -248,35 +229,11 @@ function togglePw(id, btn) {
   btn.textContent = show ? 'hide' : 'show';
 }
 
-function renderTags() {
-  const wrap = document.getElementById('models-wrap');
-  wrap.querySelectorAll('.tag').forEach(t => t.remove());
-  modelTags.forEach((t, i) => {
-    const span = document.createElement('span');
-    span.className = 'tag';
-    span.innerHTML = `${t}<button type="button" onclick="removeTag(${i})" title="remove">&times;</button>`;
-    wrap.insertBefore(span, document.getElementById('models-raw'));
-  });
-}
-function removeTag(i) { modelTags.splice(i, 1); renderTags(); }
-document.getElementById('models-raw').addEventListener('keydown', e => {
-  const v = e.target.value.trim();
-  if ((e.key === 'Enter' || e.key === ',') && v) {
-    e.preventDefault();
-    if (!modelTags.includes(v)) { modelTags.push(v); renderTags(); }
-    e.target.value = '';
-  } else if (e.key === 'Backspace' && !e.target.value && modelTags.length) {
-    modelTags.pop(); renderTags();
-  }
-});
-
 function populate(data) {
   FIELDS_TEXT.forEach(k => { if (data[k] != null) document.getElementById(k).value = data[k]; });
   FIELDS_NUM.forEach(k  => { if (data[k] != null) document.getElementById(k).value = data[k]; });
   FIELDS_SEL.forEach(k  => { if (data[k] != null) document.getElementById(k).value = data[k]; });
   FIELDS_BOOL.forEach(k => { if (data[k] != null) document.getElementById(k).checked = !!data[k]; });
-  modelTags = Array.isArray(data.models) ? [...data.models] : [];
-  renderTags();
 }
 
 async function load() {
@@ -294,12 +251,11 @@ document.getElementById('cfg').addEventListener('submit', async e => {
   FIELDS_NUM.forEach(k  => { body[k] = parseInt(document.getElementById(k).value, 10); });
   FIELDS_SEL.forEach(k  => { body[k] = document.getElementById(k).value; });
   FIELDS_BOOL.forEach(k => { body[k] = document.getElementById(k).checked; });
-  body.models = [...modelTags];
   try {
     const r = await fetch('/config', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || r.statusText);
-    toast('Saved ✓');
+    toast('Saved');
   } catch(e) { toast(e.message, true); }
 });
 
@@ -322,24 +278,23 @@ def get_html() -> bytes:
 
 
 def get_current_config() -> dict:
-    """Return the current live config as a JSON-serialisable dict."""
     c = _config
     return {
         "port": c.port,
         "log_level": c.log_level,
         "debug_mode": c.debug_mode,
-        "z_ai_api_key": c.z_ai_api_key,
-        "gemini_api_key": c.gemini_api_key,
-        "models": list(c.models),
-        "compaction_model": c.compaction_model or "",
+        "zai_api_key": c.zai_api_key,
+        "zai_url": c.zai_url,
+        "deepseek_api_key": c.deepseek_api_key,
+        "deepseek_url": c.deepseek_url,
+        "xiaomi_api_key": c.xiaomi_api_key,
+        "xiaomi_url": c.xiaomi_url,
         "request_timeout_connect": c.request_timeout_connect,
         "request_timeout_read": c.request_timeout_read,
-        "reasoning_effort": c.reasoning.get("default_effort", c.reasoning_effort),
     }
 
 
 def apply_and_save(data: dict) -> dict:
-    """Validate, apply to live config, and persist to config file."""
     c = _config
 
     if "port" in data:
@@ -358,15 +313,13 @@ def apply_and_save(data: dict) -> dict:
     if "debug_mode" in data:
         c.debug_mode = bool(data["debug_mode"])
 
-    for key in ("z_ai_api_key", "gemini_api_key"):
+    for key in (
+        "zai_api_key", "zai_url",
+        "deepseek_api_key", "deepseek_url",
+        "xiaomi_api_key", "xiaomi_url",
+    ):
         if key in data:
             setattr(c, key, str(data[key]))
-
-    if "models" in data:
-        c.models = [m for m in data["models"] if m]
-
-    if "compaction_model" in data:
-        c.compaction_model = str(data["compaction_model"]) or None
 
     if "request_timeout_connect" in data:
         c.request_timeout_connect = max(1, int(data["request_timeout_connect"]))
@@ -374,24 +327,13 @@ def apply_and_save(data: dict) -> dict:
     if "request_timeout_read" in data:
         c.request_timeout_read = max(1, int(data["request_timeout_read"]))
 
-    if "reasoning_effort" in data:
-        effort = str(data["reasoning_effort"])
-        valid = {"none", "minimal", "low", "medium", "high", "xhigh"}
-        if effort not in valid:
-            raise ValueError(f"reasoning_effort must be one of {valid}")
-        c.reasoning_effort = effort
-        c.reasoning["default_effort"] = effort
-
-    # Persist to disk
     _save_config(c)
     return get_current_config()
 
 
 def _save_config(c: Config):
-    """Write current config to the config file (creates dirs if needed)."""
     os.makedirs(os.path.dirname(c.config_path), exist_ok=True)
 
-    # Load existing file to preserve keys we don't manage
     existing: dict = {}
     if os.path.exists(c.config_path):
         try:
@@ -404,14 +346,14 @@ def _save_config(c: Config):
         "port": c.port,
         "log_level": c.log_level,
         "debug_mode": c.debug_mode,
-        "z_ai_api_key": c.z_ai_api_key,
-        "gemini_api_key": c.gemini_api_key,
-        "models": list(c.models),
-        "compaction_model": c.compaction_model or "",
+        "zai_api_key": c.zai_api_key,
+        "zai_url": c.zai_url,
+        "deepseek_api_key": c.deepseek_api_key,
+        "deepseek_url": c.deepseek_url,
+        "xiaomi_api_key": c.xiaomi_api_key,
+        "xiaomi_url": c.xiaomi_url,
         "request_timeout_connect": c.request_timeout_connect,
         "request_timeout_read": c.request_timeout_read,
-        "reasoning_effort": c.reasoning_effort,
-        "reasoning": c.reasoning,
     })
 
     with open(c.config_path, "w") as f:

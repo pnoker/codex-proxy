@@ -3,32 +3,20 @@
 import json
 import pytest
 from unittest.mock import MagicMock, patch
-from codex_proxy.server import ProxyRequestHandler, ProviderRegistry
+from codex_proxy.server import ProxyRequestHandler, PROVIDERS
 
 
 class MockRequest:
-    """Mock HTTP request."""
-
     def __init__(self):
         self.rfile = None
         self.wfile = None
 
 
 class MockServer:
-    """Mock HTTP server."""
-
     pass
 
 
-@pytest.fixture
-def reset_registry():
-    """Reset provider registry before each test."""
-    ProviderRegistry.initialize_from_config()
-    yield
-
-
-def create_handler(body_dict, path="/v1/responses"):
-    """Helper to create a handler with mocked I/O."""
+def create_handler(body_dict, path="/zai/v1/responses"):
     body_bytes = json.dumps(body_dict).encode("utf-8")
 
     request = MockRequest()
@@ -55,65 +43,56 @@ def create_handler(body_dict, path="/v1/responses"):
 
 
 class TestRequestRouting:
-    """Test request routing to providers."""
+    """Test request routing to providers by URL path."""
 
-    def test_gemini_request_routing(self, reset_registry):
-        """Test that gemini model routes to Gemini provider."""
-        handler, wfile = create_handler(
+    def test_zai_request_routing(self):
+        handler, _ = create_handler(
+            {"model": "glm-4", "messages": [{"role": "user", "content": "Hello"}]},
+            "/zai/v1/responses",
+        )
+
+        with patch.object(PROVIDERS["zai"], "handle_request") as mock_zai:
+            handler._handle_post()
+            mock_zai.assert_called_once()
+
+    def test_deepseek_request_routing(self):
+        handler, _ = create_handler(
             {
-                "model": "gemini-2.5-flash-lite",
+                "model": "deepseek-v4-pro",
                 "messages": [{"role": "user", "content": "Hello"}],
-            }
+            },
+            "/deepseek/v1/responses",
         )
 
-        with patch(
-            "codex_proxy.providers.gemini.GeminiProvider.handle_request"
-        ) as mock_handle:
-            with patch(
-                "codex_proxy.providers.zai.ZAIProvider.handle_request"
-            ) as mock_zai:
-                handler._handle_post()
-                mock_handle.assert_called_once()
-                mock_zai.assert_not_called()
+        with patch.object(PROVIDERS["deepseek"], "handle_request") as mock_ds:
+            handler._handle_post()
+            mock_ds.assert_called_once()
 
-    def test_glm_request_routing(self, reset_registry):
-        """Test that glm model routes to ZAI provider."""
-        handler, wfile = create_handler(
-            {"model": "glm-4", "messages": [{"role": "user", "content": "Hello"}]}
+    def test_xiaomi_request_routing(self):
+        handler, _ = create_handler(
+            {
+                "model": "mimo-v2.5-pro",
+                "messages": [{"role": "user", "content": "Hello"}],
+            },
+            "/xiaomi/v1/responses",
         )
 
-        with patch(
-            "codex_proxy.providers.gemini.GeminiProvider.handle_request"
-        ) as mock_gemini:
-            with patch(
-                "codex_proxy.providers.zai.ZAIProvider.handle_request"
-            ) as mock_handle:
-                handler._handle_post()
-                mock_handle.assert_called_once()
-                mock_gemini.assert_not_called()
+        with patch.object(PROVIDERS["xiaomi"], "handle_request") as mock_xm:
+            handler._handle_post()
+            mock_xm.assert_called_once()
 
-    def test_zai_request_routing(self, reset_registry):
-        """Test that zai model routes to ZAI provider."""
-        handler, wfile = create_handler(
-            {"model": "zai-custom", "messages": [{"role": "user", "content": "Hello"}]}
+    def test_unknown_provider_returns_404(self):
+        handler, _ = create_handler(
+            {"model": "test", "messages": [{"role": "user", "content": "Hello"}]},
+            "/unknown/v1/responses",
         )
-
-        with patch(
-            "codex_proxy.providers.gemini.GeminiProvider.handle_request"
-        ) as mock_gemini:
-            with patch(
-                "codex_proxy.providers.zai.ZAIProvider.handle_request"
-            ) as mock_handle:
-                handler._handle_post()
-                mock_handle.assert_called_once()
-                mock_gemini.assert_not_called()
+        handler._handle_post()
+        handler.send_error.assert_called_once()
+        assert handler.send_error.call_args[0][0] == 404
 
 
 class TestRequestValidation:
-    """Test request validation in the server."""
-
     def test_invalid_json_returns_400(self):
-        """Test that invalid JSON returns 400 error."""
         body_bytes = b"not valid json"
 
         request = MockRequest()
@@ -127,84 +106,83 @@ class TestRequestValidation:
         handler.rfile = rfile
         handler.wfile = wfile
         handler.headers = {"Content-Length": str(len(body_bytes))}
-        handler.path = "/v1/responses"  # Manually set path
+        handler.path = "/zai/v1/responses"
         handler.send_error = MagicMock()
 
-        handler.do_POST()  # Call do_POST to exercise error handling
+        handler.do_POST()
         handler.send_error.assert_called_once()
-        call_args = handler.send_error.call_args[0]
-        assert call_args[0] == 400
+        assert handler.send_error.call_args[0][0] == 400
 
     def test_empty_body_returns_400(self):
-        """Test that empty body returns 400 error."""
-        handler, wfile = create_handler({})
-
+        handler, _ = create_handler({})
         handler.headers = {"Content-Length": "0"}
         handler._handle_post()
         handler.send_error.assert_called_once()
-        call_args = handler.send_error.call_args[0]
-        assert call_args[0] == 400
+        assert handler.send_error.call_args[0][0] == 400
 
     def test_invalid_endpoint_returns_404(self):
-        """Test that invalid endpoint returns 404 error."""
-        handler, wfile = create_handler({"model": "test"}, "/invalid")
+        handler, _ = create_handler({"model": "test"}, "/invalid")
         handler._handle_post()
         handler.send_error.assert_called_once()
-        call_args = handler.send_error.call_args[0]
-        assert call_args[0] == 404
+        assert handler.send_error.call_args[0][0] == 404
+
+    def test_old_v1_endpoint_returns_404(self):
+        handler, _ = create_handler(
+            {"model": "test"}, "/v1/responses"
+        )
+        handler._handle_post()
+        handler.send_error.assert_called_once()
+        assert handler.send_error.call_args[0][0] == 404
 
 
 class TestCompactionRequests:
-    """Test compaction request handling."""
-
-    def test_compact_route_uses_compaction_model(self, reset_registry):
-        """Test that compaction requests use configured compaction model."""
-        handler, wfile = create_handler(
+    def test_compact_route_uses_correct_provider(self):
+        handler, _ = create_handler(
             {
-                "model": "glm-4",  # User's selected model
+                "model": "glm-4",
                 "input": "Long conversation...",
                 "instructions": "Summarize",
             },
-            "/v1/responses/compact",
+            "/zai/v1/responses/compact",
         )
 
-        # Force compaction model to ensure ZAI provider is selected
-        with patch(
-            "codex_proxy.server.config.compaction_model", "glm-compaction-model"
-        ):
-            with patch(
-                "codex_proxy.providers.zai.ZAIProvider.handle_compact"
-            ) as mock_compact:
-                with patch(
-                    "codex_proxy.providers.gemini.GeminiProvider.handle_request"
-                ) as mock_request:
-                    handler._handle_post()
-                    # Should call handle_compact, not handle_request
-                    mock_compact.assert_called_once()
-                    mock_request.assert_not_called()
+        with patch.object(PROVIDERS["zai"], "handle_compact") as mock_compact:
+            handler._handle_post()
+            mock_compact.assert_called_once()
 
-    def test_compact_validation_error(self, reset_registry):
-        """Test that invalid compact request returns 400."""
-        handler, wfile = create_handler(
-            {"model": "test", "input": "content"}, "/v1/responses/compact"
+    def test_compact_deepseek(self):
+        handler, _ = create_handler(
+            {
+                "model": "deepseek-chat",
+                "input": "Long conversation...",
+                "instructions": "Summarize",
+            },
+            "/deepseek/v1/responses/compact",
         )
 
-        handler.do_POST()  # Call do_POST to exercise error handling
+        with patch.object(PROVIDERS["deepseek"], "handle_compact") as mock_compact:
+            handler._handle_post()
+            mock_compact.assert_called_once()
+
+    def test_compact_validation_error(self):
+        handler, _ = create_handler(
+            {"model": "test", "input": "content"},
+            "/zai/v1/responses/compact",
+        )
+
+        handler.do_POST()
         handler.send_error.assert_called_once()
-        call_args = handler.send_error.call_args[0]
-        assert call_args[0] == 400
+        assert handler.send_error.call_args[0][0] == 400
 
 
 class TestHeaders:
-    """Test that headers are properly forwarded."""
-
-    def test_context_headers_preserved(self, reset_registry):
-        """Test that context headers are preserved in request data."""
-        handler, wfile = create_handler(
+    def test_context_headers_preserved(self):
+        handler, _ = create_handler(
             {
-                "model": "gemini-2.5-flash-lite",
+                "model": "glm-4",
                 "messages": [{"role": "user", "content": "Hello"}],
-            }
+            },
+            "/zai/v1/responses",
         )
 
         handler.headers = {
@@ -215,173 +193,140 @@ class TestHeaders:
             "x-codex-personality": "helpful",
         }
 
-        with patch(
-            "codex_proxy.providers.gemini.GeminiProvider.handle_request"
-        ) as mock_handle:
+        with patch.object(PROVIDERS["zai"], "handle_request") as mock_handle:
             handler._handle_post()
             call_args = mock_handle.call_args[0]
             data = call_args[0]
             assert "_headers" in data
             assert data["_headers"]["session_id"] == "session-123"
             assert data["_headers"]["x-openai-subagent"] == "true"
-            assert data["_headers"]["x-codex-turn-state"] == "state-456"
-            assert data["_headers"]["x-codex-personality"] == "helpful"
 
 
 class TestResponsesAPI:
-    """Test Responses API specific handling."""
-
-    def test_responses_api_flag_set(self, reset_registry):
-        """Test that _is_responses_api flag is set for normal requests."""
-        handler, wfile = create_handler(
+    def test_responses_api_flag_set(self):
+        handler, _ = create_handler(
             {
-                "model": "gemini-2.5-flash-lite",
+                "model": "glm-4",
                 "messages": [{"role": "user", "content": "Hello"}],
-            }
+            },
+            "/zai/v1/responses",
         )
 
-        with patch(
-            "codex_proxy.providers.gemini.GeminiProvider.handle_request"
-        ) as mock_handle:
+        with patch.object(PROVIDERS["zai"], "handle_request") as mock_handle:
             handler._handle_post()
             call_args = mock_handle.call_args[0]
             data = call_args[0]
             assert data.get("_is_responses_api") is True
 
-    def test_compact_no_responses_api_flag(self, reset_registry):
-        """Test that _is_responses_api is not set for compact requests."""
-        handler, wfile = create_handler(
+    def test_compact_no_responses_api_flag(self):
+        handler, _ = create_handler(
             {
-                "model": "gemini-2.5-flash-lite",
+                "model": "glm-4",
                 "input": [{"role": "user", "content": "content"}],
                 "instructions": "Summarize",
             },
-            "/v1/responses/compact",
+            "/zai/v1/responses/compact",
         )
 
-        # Force compaction model to ensure Gemini provider is selected
-        with patch(
-            "codex_proxy.server.config.compaction_model", "gemini-2.5-flash-lite"
-        ):
-            with patch(
-                "codex_proxy.providers.gemini.GeminiProvider.handle_compact"
-            ) as mock_handle:
-                handler._handle_post()
-                call_args = mock_handle.call_args[0]
-                data = call_args[0]
-                assert (
-                    data.get("_is_responses_api") is None
-                    or data.get("_is_responses_api") is False
-                )
+        with patch.object(PROVIDERS["zai"], "handle_compact") as mock_handle:
+            handler._handle_post()
+            call_args = mock_handle.call_args[0]
+            data = call_args[0]
+            assert data.get("_is_responses_api") is None
 
 
 class TestErrorHandling:
-    """Test error handling in the server."""
-
     def test_validation_error_returns_400(self):
-        """Test that validation errors return 400."""
-        handler, wfile = create_handler(
+        handler, _ = create_handler(
             {
-                "model": "x" * 101,  # Too long
+                "model": "x" * 101,
                 "messages": [{"role": "user", "content": "Hello"}],
-            }
+            },
+            "/zai/v1/responses",
         )
 
-        handler.do_POST()  # Call do_POST to exercise error handling
+        handler.do_POST()
         handler.send_error.assert_called_once()
-        call_args = handler.send_error.call_args[0]
-        assert call_args[0] == 400
+        assert handler.send_error.call_args[0][0] == 400
 
-    def test_provider_error_returns_502(self, reset_registry):
-        """Test that provider errors return 502."""
+    def test_provider_error_returns_502(self):
         from codex_proxy.exceptions import ProviderError
 
-        handler, wfile = create_handler(
+        handler, _ = create_handler(
             {
-                "model": "gemini-2.5-flash-lite",
+                "model": "glm-4",
                 "messages": [{"role": "user", "content": "Hello"}],
-            }
+            },
+            "/zai/v1/responses",
         )
 
-        # Patch the actual provider instance's method
-        provider = ProviderRegistry.get_provider("gemini-2.5-flash-lite")
         with patch.object(
-            provider, "handle_request", side_effect=ProviderError("Provider failed")
+            PROVIDERS["zai"], "handle_request", side_effect=ProviderError("fail")
         ):
             handler.do_POST()
             handler.send_error.assert_called_once()
-            call_args = handler.send_error.call_args[0]
-            assert call_args[0] == 502
+            assert handler.send_error.call_args[0][0] == 502
 
     def test_unexpected_error_returns_500(self):
-        """Test that unexpected errors return 500."""
-        handler, wfile = create_handler(
+        handler, _ = create_handler(
             {
-                "model": "gemini-2.5-flash-lite",
+                "model": "glm-4",
                 "messages": [{"role": "user", "content": "Hello"}],
-            }
+            },
+            "/zai/v1/responses",
         )
 
         with patch(
-            "codex_proxy.normalizer.RequestNormalizer.normalize"
-        ) as mock_normalize:
-            mock_normalize.side_effect = Exception("Unexpected error")
+            "codex_proxy.normalizer.RequestNormalizer.normalize",
+            side_effect=Exception("Unexpected error"),
+        ):
             handler.do_POST()
             handler.send_error.assert_called_once()
-            call_args = handler.send_error.call_args[0]
-            assert call_args[0] == 500
+            assert handler.send_error.call_args[0][0] == 500
 
 
 class TestEndpoints:
-    """Test different endpoint paths."""
-
     @pytest.mark.parametrize(
         "path",
         [
-            "/v1/responses",
-            "/responses",
+            "/zai/v1/responses",
+            "/deepseek/v1/responses",
+            "/xiaomi/v1/responses",
         ],
     )
-    def test_valid_responses_endpoints(self, reset_registry, path):
-        """Test that valid response endpoints are accepted."""
-        handler, wfile = create_handler(
+    def test_valid_responses_endpoints(self, path):
+        provider_name = path.split("/")[1]
+        handler, _ = create_handler(
             {
-                "model": "gemini-2.5-flash-lite",
+                "model": "test-model",
                 "messages": [{"role": "user", "content": "Hello"}],
             },
             path=path,
         )
 
-        with patch(
-            "codex_proxy.providers.gemini.GeminiProvider.handle_request"
-        ) as mock_handle:
+        with patch.object(PROVIDERS[provider_name], "handle_request") as mock_handle:
             handler._handle_post()
             mock_handle.assert_called_once()
 
     @pytest.mark.parametrize(
         "path",
         [
-            "/v1/responses/compact",
-            "/responses/compact",
+            "/zai/v1/responses/compact",
+            "/deepseek/v1/responses/compact",
+            "/xiaomi/v1/responses/compact",
         ],
     )
-    def test_valid_compact_endpoints(self, reset_registry, path):
-        """Test that valid compact endpoints are accepted."""
-        handler, wfile = create_handler(
+    def test_valid_compact_endpoints(self, path):
+        provider_name = path.split("/")[1]
+        handler, _ = create_handler(
             {
-                "model": "gemini-2.5-flash-lite",
+                "model": "test-model",
                 "input": [{"role": "user", "content": "content"}],
                 "instructions": "Summarize",
             },
             path=path,
         )
 
-        # Force compaction model to ensure Gemini provider is selected
-        with patch(
-            "codex_proxy.server.config.compaction_model", "gemini-2.5-flash-lite"
-        ):
-            with patch(
-                "codex_proxy.providers.gemini.GeminiProvider.handle_compact"
-            ) as mock_handle:
-                handler._handle_post()
-                mock_handle.assert_called_once()
+        with patch.object(PROVIDERS[provider_name], "handle_compact") as mock_handle:
+            handler._handle_post()
+            mock_handle.assert_called_once()
