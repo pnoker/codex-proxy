@@ -6,6 +6,8 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
 from typing import Dict
 
+from pathlib import Path
+
 from .config import config
 from .exceptions import ProxyError, ProviderError, ValidationError
 from .providers.base import BaseProvider
@@ -30,6 +32,34 @@ PROVIDERS: Dict[str, BaseProvider] = {
 _PROVIDER_PATH_RE = re.compile(
     r"^/([a-z][a-z0-9]*)/v1/responses(/compact)?$"
 )
+
+_CUSTOM_MODELS_PATH = Path(__file__).resolve().parent.parent.parent / "scripts" / "custom_models.json"
+_custom_models_cache: list | None = None
+
+
+def _load_custom_models() -> list:
+    global _custom_models_cache
+    if _custom_models_cache is not None:
+        return _custom_models_cache
+    if _CUSTOM_MODELS_PATH.exists():
+        try:
+            with open(_CUSTOM_MODELS_PATH, "r") as f:
+                data = json.load(f)
+            _custom_models_cache = data.get("models", [])
+            logger.info(
+                "Loaded %d custom models from %s",
+                len(_custom_models_cache),
+                _CUSTOM_MODELS_PATH,
+            )
+        except Exception as e:
+            logger.warning("Failed to load custom_models.json: %s", e)
+            _custom_models_cache = []
+    else:
+        _custom_models_cache = []
+    return _custom_models_cache
+
+
+_MODELS_PATH_RE = re.compile(r"^/(?:[a-z][a-z0-9]*/)?v1/models$")
 
 
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
@@ -63,6 +93,8 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
+        elif _MODELS_PATH_RE.match(self.path.rstrip("/")):
+            self._handle_models()
         else:
             self.send_error(404, "Not found")
 
@@ -129,8 +161,6 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             return
 
         body = self.rfile.read(content_length)
-        if config.debug_mode:
-            logger.debug(f"RAW REQUEST: {body.decode('utf-8', errors='replace')}")
 
         try:
             data = json_loads(body)
@@ -154,9 +184,59 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         else:
             data = RequestNormalizer.normalize(data)
             data["_is_responses_api"] = True
+            self._log_request(provider_name, data)
             provider.handle_request(data, self)
 
         self.close_connection = True
+
+    @staticmethod
+    def _log_request(provider_name: str, data: dict) -> None:
+        messages = data.get("messages", [])
+        tools = data.get("tools", [])
+        logger.info(
+            "[%s] model=%s stream=%s messages=%d tools=%d",
+            provider_name,
+            data.get("model", "?"),
+            data.get("stream", False),
+            len(messages),
+            len(tools),
+        )
+        for i, msg in enumerate(messages):
+            role = msg.get("role", "?")
+            content = msg.get("content") or ""
+            preview = (content[:150] + "...") if len(content) > 150 else content
+            preview = preview.replace("\n", "\\n")
+            tc = msg.get("tool_calls")
+            if tc:
+                tc_names = [c["function"]["name"] for c in tc if "function" in c]
+                logger.info(
+                    "  [%d] %s: tool_calls=%s", i, role, tc_names,
+                )
+            else:
+                logger.info("  [%d] %s: %s", i, role, preview)
+            rc = msg.get("reasoning_content")
+            if rc:
+                rc_preview = (rc[:100] + "...") if len(rc) > 100 else rc
+                logger.info("  [%d] %s reasoning: %s", i, role, rc_preview.replace("\n", "\\n"))
+        if tools:
+            tool_names = [
+                t.get("function", {}).get("name", t.get("name", "?"))
+                for t in tools
+            ]
+            logger.info("  tools: %s", tool_names)
+
+    def _handle_models(self):
+        custom_models = _load_custom_models()
+        models = [
+            {"id": m["slug"], "object": "model", "created": 0, "owned_by": "custom"}
+            for m in custom_models
+        ]
+        body = json.dumps({"object": "list", "data": models}).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def do_OPTIONS(self):
         self.send_response(204)

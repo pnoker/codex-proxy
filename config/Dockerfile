@@ -15,7 +15,7 @@ COPY src ./src
 # Set python path and defaults
 ENV PYTHONPATH=/app/src
 ENV PYTHONUNBUFFERED=1
-ENV LOG_LEVEL=INFO
+ENV CODEX_PROXY_LOG_LEVEL=INFO
 
 # Expose port
 EXPOSE 8765

@@ -19,4 +19,4 @@ services:
         labels: "service=codex-proxy"
     environment:
       - PYTHONUNBUFFERED=1
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - CODEX_PROXY_LOG_LEVEL=${CODEX_PROXY_LOG_LEVEL:-INFO}
