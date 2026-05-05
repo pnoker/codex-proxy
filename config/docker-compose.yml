@@ -7,7 +7,6 @@ services:
     ports:
       - "8765:8765"
     volumes:
-      - ${HOME}/.config/codex-proxy:/home/appuser/.config/codex-proxy:ro
       - ${HOME}/.codex/config.toml:/home/appuser/.codex/config.toml:ro
     restart: unless-stopped
     logging:

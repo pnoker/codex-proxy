@@ -103,9 +103,6 @@ class Config:
             os.environ.get("CODEX_PROXY_DEBUG", "false").lower() == "true"
         )
     )
-    config_token: str = field(
-        default_factory=lambda: os.environ.get("CODEX_PROXY_CONFIG_TOKEN", "")
-    )
 
     def __post_init__(self):
         self._load_from_file()
@@ -128,7 +125,6 @@ class Config:
                     "xiaomi_url": "CODEX_PROXY_XIAOMI_URL",
                     "port": "CODEX_PROXY_PORT",
                     "log_level": "CODEX_PROXY_LOG_LEVEL",
-                    "config_token": "CODEX_PROXY_CONFIG_TOKEN",
                 }
                 for attr, env_key in env_overrides.items():
                     if not os.environ.get(env_key):

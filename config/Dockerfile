@@ -21,7 +21,7 @@ ENV CODEX_PROXY_LOG_LEVEL=INFO
 EXPOSE 8765
 
 # Pre-create config directories for volume mounts
-RUN mkdir -p /home/appuser/.config/codex-proxy /home/appuser/.codex &&     chown -R appuser:appuser /home/appuser/.config /home/appuser/.codex
+RUN mkdir -p /home/appuser/.codex &&     chown -R appuser:appuser /home/appuser/.config /home/appuser/.codex
 
 # Switch to non-root user
 USER appuser

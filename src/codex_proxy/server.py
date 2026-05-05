@@ -17,7 +17,6 @@ from .providers.xiaomi import XiaomiProvider
 from .normalizer import RequestNormalizer
 from .utils import json_loads
 from .validator import RequestValidator
-from . import ui as _ui
 
 logger = logging.getLogger(__name__)
 
@@ -79,23 +78,7 @@ class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
 class ProxyRequestHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
-        if self.path in ("/", "/ui"):
-            body = _ui.get_html()
-            self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-        elif self.path == "/config":
-            if not self._check_config_auth():
-                return
-            body = json.dumps(_ui.get_current_config()).encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-        elif _MODELS_PATH_RE.match(self.path.rstrip("/")):
+        if _MODELS_PATH_RE.match(self.path.rstrip("/")):
             self._handle_models()
         else:
             self.send_error(404, "Not found")
@@ -126,28 +109,6 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         logger.info(f"POST {self.path}")
 
         # Config UI save endpoint
-        if self.path == "/config":
-            if not self._check_config_auth():
-                return
-            content_length = int(self.headers.get("Content-Length", 0))
-            body = self.rfile.read(content_length) if content_length else b"{}"
-            try:
-                data = json_loads(body)
-                result = _ui.apply_and_save(data)
-                resp = json.dumps(result).encode("utf-8")
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Content-Length", str(len(resp)))
-                self.end_headers()
-                self.wfile.write(resp)
-            except (ValueError, TypeError) as e:
-                err = json.dumps({"error": str(e)}).encode("utf-8")
-                self.send_response(400)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Content-Length", str(len(err)))
-                self.end_headers()
-                self.wfile.write(err)
-            return
 
         # Match provider path pattern
         match = _PROVIDER_PATH_RE.match(self.path.rstrip("/"))
@@ -195,16 +156,6 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             provider.handle_request(data, self)
 
         self.close_connection = True
-
-    def _check_config_auth(self) -> bool:
-        token = config.config_token
-        if not token:
-            return True
-        auth = self.headers.get("Authorization", "")
-        if auth == f"Bearer {token}":
-            return True
-        self.send_error(403, "Forbidden: invalid or missing config token")
-        return False
 
     @staticmethod
     def _log_request(provider_name: str, data: dict) -> None:
