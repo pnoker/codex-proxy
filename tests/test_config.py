@@ -7,6 +7,11 @@ from codex_proxy.config import Config, ConfigurationError
 class TestConfigDefaults:
     def test_default_host(self):
         cfg = Config()
+        assert cfg.host == "127.0.0.1"
+
+    def test_host_from_env(self, monkeypatch):
+        monkeypatch.setenv("CODEX_PROXY_HOST", "0.0.0.0")
+        cfg = Config()
         assert cfg.host == "0.0.0.0"
 
     def test_default_port(self):

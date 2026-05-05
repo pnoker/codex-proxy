@@ -27,7 +27,9 @@ def _validate_url(url: str, name: str) -> str:
 @dataclass
 class Config:
     # Server
-    host: str = "0.0.0.0"
+    host: str = field(
+        default_factory=lambda: os.environ.get("CODEX_PROXY_HOST", "127.0.0.1")
+    )
     port: int = field(
         default_factory=lambda: _validate_port(
             os.environ.get("CODEX_PROXY_PORT", "8765")
@@ -117,6 +119,7 @@ class Config:
                 file_config = json.load(f)
 
                 env_overrides = {
+                    "host": "CODEX_PROXY_HOST",
                     "zai_api_key": "CODEX_PROXY_ZAI_API_KEY",
                     "zai_url": "CODEX_PROXY_ZAI_URL",
                     "deepseek_api_key": "CODEX_PROXY_DEEPSEEK_API_KEY",
