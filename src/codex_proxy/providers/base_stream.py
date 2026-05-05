@@ -91,6 +91,7 @@ class BaseStreamHandler:
 
         self._send_event("response.created", {"response": response_obj})
 
+        stream_error = None
         try:
             for line in resp.iter_lines():
                 if not line or not line.startswith(b"data: "):
@@ -102,8 +103,9 @@ class BaseStreamHandler:
             logger.error(
                 f"Error in {self.provider_name} stream processing: {e}"
             )
+            stream_error = e
         finally:
-            self._finalize(response_obj)
+            self._finalize(response_obj, stream_error=stream_error)
 
     # ------------------------------------------------------------------
     # Line handling
@@ -120,7 +122,7 @@ class BaseStreamHandler:
             delta = choice.get("delta", {})
 
             # Tool calls
-            if "tool_calls" in delta:
+            if delta.get("tool_calls"):
                 self._handle_tool_calls(delta["tool_calls"])
 
             # Reasoning content
@@ -271,15 +273,54 @@ class BaseStreamHandler:
         )
 
     # ------------------------------------------------------------------
+    # Content-level done events
+    # ------------------------------------------------------------------
+
+    def _emit_content_done_events(
+        self, out_idx: int, item: Dict[str, Any]
+    ) -> None:
+        item_type = item.get("type")
+        if item_type == "message" and item.get("content"):
+            self._send_event(
+                "response.output_text.done",
+                {
+                    "response_id": self.resp_id,
+                    "item_id": item["id"],
+                    "output_index": out_idx,
+                    "content_index": 0,
+                    "text": item["content"][0].get("text", ""),
+                },
+            )
+        elif item_type == "reasoning" and item.get("summary"):
+            self._send_event(
+                "response.reasoning_summary_text.done",
+                {
+                    "response_id": self.resp_id,
+                    "item_id": item["id"],
+                    "output_index": out_idx,
+                    "summary_index": 0,
+                    "text": item["summary"][0].get("text", ""),
+                },
+            )
+
+    # ------------------------------------------------------------------
     # Finalize
     # ------------------------------------------------------------------
 
-    def _finalize(self, response_obj: Dict[str, Any]) -> None:
+    def _finalize(
+        self,
+        response_obj: Dict[str, Any],
+        *,
+        stream_error: Optional[Exception] = None,
+    ) -> None:
         logger.info(
             "[%s] << stream content=%d reasoning=%d calls=%d",
             self.provider_name,
             len(self.full_content), len(self.full_reasoning), len(self.tool_calls),
         )
+
+        completed = stream_error is None
+        item_status = "completed" if completed else "incomplete"
 
         items_to_close: List[tuple] = []
         if self.reasoning_item:
@@ -293,7 +334,7 @@ class BaseStreamHandler:
 
         final_output: List[Dict[str, Any]] = []
         for out_idx, item in items_to_close:
-            item["status"] = "completed"
+            item["status"] = item_status
 
             if item.get("type") == "function_call":
                 if item["name"] in (
@@ -311,6 +352,9 @@ class BaseStreamHandler:
                     except (ValueError, TypeError, KeyError):
                         pass
 
+            if completed:
+                self._emit_content_done_events(out_idx, item)
+
             self._send_event(
                 "response.output_item.done",
                 {
@@ -321,8 +365,10 @@ class BaseStreamHandler:
             )
             final_output.append(item)
 
-        response_obj["status"] = "completed"
+        final_status = "completed" if completed else "incomplete"
+        response_obj["status"] = final_status
         response_obj["completed_at"] = int(time.time())
         response_obj["output"] = final_output
 
-        self._send_event("response.completed", {"response": response_obj})
+        event_type = "response.completed" if completed else "response.incomplete"
+        self._send_event(event_type, {"response": response_obj})
