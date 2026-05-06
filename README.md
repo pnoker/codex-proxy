@@ -51,7 +51,7 @@ CODEX_PROXY_XIAOMI_API_KEY=your-xiaomi-api-key
 podman compose -f config/docker-compose.yml down && podman compose -f config/docker-compose.yml up -d --build
 
 # Or Docker
-docker compose -f config/docker-compose.yml down && podman compose -f config/docker-compose.yml up -d --build
+docker compose -f config/docker-compose.yml down && docker compose -f config/docker-compose.yml up -d --build
 
 # Or run directly
 uv run codex-proxy

@@ -100,7 +100,7 @@ class ZAIProvider(BaseProvider):
             ) as resp:
                 logger.info("Z.AI response status: %s", resp.status_code)
                 if stream:
-                    self._handle_stream_response(resp, payload, handler)
+                    self._handle_stream_response(resp, payload, handler, original_data)
                 else:
                     self._handle_sync_response(resp, original_data, handler)
         except Exception as e:

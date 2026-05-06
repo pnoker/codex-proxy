@@ -75,7 +75,7 @@ class XiaomiProvider(BaseProvider):
                         "Xiaomi error response: %s", resp.text[:500]
                     )
                 if stream:
-                    self._handle_stream_response(resp, payload, handler)
+                    self._handle_stream_response(resp, payload, handler, original_data)
                 else:
                     self._handle_sync_response(resp, original_data, handler)
         except Exception as e:

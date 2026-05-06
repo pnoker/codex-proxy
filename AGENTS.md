@@ -46,7 +46,7 @@ CLI -> POST /{provider}/v1/responses
 - **validator 在 normalize 之前执行**：原始数据用 `input` 不用 `messages`，messages 校验被跳过是设计如此
 - **stream 异常不能冒泡到 do_POST**：headers 已发送后再调 send_error 会崩溃，异常在 `_handle_stream_response` 内部捕获
 - **stream 出错发 `response.incomplete`**：不是 `response.completed`，Codex CLI 依赖此状态判断
-- **shell call 必须转换**：name 为 shell/container.exec/shell_command 的 function_call 要转为 local_shell_call（Codex CLI 协议），用 `convert_shell_call()`
+- **shell call 仅在客户端有 local_shell builtin 时转换**：Mac/Linux Codex CLI 注册 `{"type": "local_shell"}` builtin，需把 name 为 shell/container.exec/shell_command 的 function_call 转为 local_shell_call；Windows Codex CLI 没有该 builtin，注册的是普通 `shell` function，转换会触发 `unsupported call: local_shell_command`。`convert_shell_call(item, has_local_shell=...)` 由请求 tools 自适应判断
 - **SSE 事件顺序**：response.created -> output_item.added -> [text.delta...] -> output_text.done -> output_item.done -> response.completed
 - **配置优先级**：env > config.json > defaults；config_token 为空则不限制 /config 访问
 - **debug_mode 默认 false**：生产环境不要开，会记录完整请求体含 API key

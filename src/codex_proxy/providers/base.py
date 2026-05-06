@@ -3,9 +3,9 @@ import logging
 import requests
 from abc import ABC, abstractmethod
 from http.server import BaseHTTPRequestHandler
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
-from .base_stream import BaseStreamHandler, convert_shell_call
+from .base_stream import BaseStreamHandler, convert_shell_call, has_local_shell_tool
 from ..utils import create_session, json_dumps
 from ..config import config
 
@@ -106,7 +106,11 @@ class BaseProvider(ABC):
     # ------------------------------------------------------------------
 
     def _handle_stream_response(
-        self, resp: requests.Response, payload: Dict[str, Any], handler: Any
+        self,
+        resp: requests.Response,
+        payload: Dict[str, Any],
+        handler: Any,
+        original_data: Optional[Dict[str, Any]] = None,
     ) -> None:
         handler.send_response(resp.status_code)
         handler.send_header("Content-Type", "text/event-stream; charset=utf-8")
@@ -114,9 +118,13 @@ class BaseProvider(ABC):
         handler.end_headers()
 
         created_ts = int(time.time())
+        has_local_shell = has_local_shell_tool(
+            (original_data or payload).get("tools")
+        )
         stream_handler = BaseStreamHandler(
             handler, payload["model"], created_ts, payload,
             provider_name=self.provider_name,
+            has_local_shell=has_local_shell,
         )
         try:
             stream_handler.process_stream(resp)
@@ -135,18 +143,27 @@ class BaseProvider(ABC):
 
         if original_data.get("_is_responses_api") and resp.status_code == 200:
             try:
-                self._write_mapped_response(resp, handler)
+                self._write_mapped_response(resp, handler, original_data)
                 return
             except Exception as e:
                 logger.warning(f"Failed to map {self.provider_name} response: {e}")
 
         handler.wfile.write(resp.content)
 
-    def _write_mapped_response(self, resp: requests.Response, handler: Any) -> None:
+    def _write_mapped_response(
+        self,
+        resp: requests.Response,
+        handler: Any,
+        original_data: Optional[Dict[str, Any]] = None,
+    ) -> None:
         r_data = resp.json()
         choice = r_data["choices"][0]
         message = choice["message"]
         usage = r_data.get("usage", {})
+
+        has_local_shell = has_local_shell_tool(
+            (original_data or {}).get("tools")
+        )
 
         output_items = []
         if "tool_calls" in message:
@@ -159,7 +176,7 @@ class BaseProvider(ABC):
                     "arguments": tc["function"]["arguments"],
                     "call_id": tc.get("id"),
                 }
-                convert_shell_call(item)
+                convert_shell_call(item, has_local_shell=has_local_shell)
                 output_items.append(item)
 
         if message.get("content"):

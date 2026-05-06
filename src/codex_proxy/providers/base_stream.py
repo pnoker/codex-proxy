@@ -9,11 +9,29 @@ from ..utils import json_dumps, json_loads
 logger = logging.getLogger(__name__)
 
 
-def convert_shell_call(item: Dict[str, Any]) -> None:
+def has_local_shell_tool(tools: Optional[List[Dict[str, Any]]]) -> bool:
+    """True when the client registered the Codex `local_shell` builtin.
+
+    Mac/Linux Codex CLI exposes `local_shell` as a builtin tool type. Windows
+    Codex CLI does not — it registers `shell` as a regular function tool, and
+    cannot consume `local_shell_call` items.
+    """
+    if not tools:
+        return False
+    return any(t.get("type") == "local_shell" for t in tools)
+
+
+def convert_shell_call(
+    item: Dict[str, Any], *, has_local_shell: bool = False
+) -> None:
     """Convert a function_call item to local_shell_call if it's a shell command.
 
-    Shared between sync response mapping and stream finalization.
+    Shared between sync response mapping and stream finalization. Skipped when
+    the client did not register the local_shell builtin (e.g. Windows Codex CLI),
+    otherwise the CLI rejects with `unsupported call: local_shell_command`.
     """
+    if not has_local_shell:
+        return
     if item.get("type") != "function_call":
         return
     if item.get("name") not in ("shell", "container.exec", "shell_command"):
@@ -46,12 +64,14 @@ class BaseStreamHandler:
         request_metadata: Optional[Dict[str, Any]] = None,
         *,
         provider_name: str = "unknown",
+        has_local_shell: bool = False,
     ):
         self.handler = handler
         self.model = model
         self.created_ts = created_ts
         self.request_metadata = request_metadata or {}
         self.provider_name = provider_name
+        self.has_local_shell = has_local_shell
         self.resp_id = f"resp_{created_ts}"
         self.seq_num = 0
 
@@ -359,7 +379,7 @@ class BaseStreamHandler:
         for out_idx, item in items_to_close:
             item["status"] = item_status
 
-            convert_shell_call(item)
+            convert_shell_call(item, has_local_shell=self.has_local_shell)
 
             if completed:
                 self._emit_content_done_events(out_idx, item)
