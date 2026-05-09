@@ -165,8 +165,9 @@ class TestCompactionRequests:
             mock_compact.assert_called_once()
 
     def test_compact_validation_error(self):
+        """Compact request with empty messages fails validation."""
         handler, _ = create_handler(
-            {"model": "test", "input": "content"},
+            {"model": "test", "messages": "not-a-list"},
             "/zai/v1/responses/compact",
         )
 

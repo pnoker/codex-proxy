@@ -142,6 +142,14 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         except (json.JSONDecodeError, ValueError) as e:
             raise ValidationError(f"Invalid JSON: {e}")
 
+        # Normalize BEFORE validate — Responses API uses input[] not messages[],
+        # so the validator would skip most checks if run before normalization.
+        if is_compact:
+            data = RequestNormalizer.normalize_for_compact(data)
+        else:
+            data = RequestNormalizer.normalize(data)
+            data["_is_responses_api"] = True
+
         RequestValidator.validate_request(data, self.path)
 
         # Attach context headers
@@ -157,8 +165,6 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         if is_compact:
             provider.handle_compact(data, self)
         else:
-            data = RequestNormalizer.normalize(data)
-            data["_is_responses_api"] = True
             self._log_request(provider_name, data)
             provider.handle_request(data, self)
 

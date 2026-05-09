@@ -230,6 +230,39 @@ class RequestNormalizer:
         messages.append({"role": "tool", "tool_call_id": call_id, "content": content})
 
     @staticmethod
+    def normalize_for_compact(data: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize a compaction request.
+
+        Compaction uses Responses API input[] format but needs Chat Completions
+        messages[] for the upstream provider. If the data already has messages[]
+        (i.e., already in Chat Completions format), return as-is.
+        """
+        data = copy.copy(data)
+
+        # If already has messages[] and no input[], it's already normalized
+        if "messages" in data and "input" not in data:
+            return data
+
+        messages = []
+
+        instructions = data.get("instructions", "")
+        if isinstance(instructions, str) and instructions:
+            messages.append({"role": "system", "content": instructions})
+
+        inp = data.get("input", [])
+        if isinstance(inp, str):
+            messages.append({"role": "user", "content": inp})
+        elif isinstance(inp, list):
+            for item in inp:
+                if isinstance(item, str):
+                    messages.append({"role": "user", "content": item})
+                elif isinstance(item, dict):
+                    RequestNormalizer._process_input_item(item, messages)
+
+        data["messages"] = messages
+        return data
+
+    @staticmethod
     def _normalize_tools(tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         normalized_tools = []
         for t in tools:

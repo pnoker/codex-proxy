@@ -96,18 +96,18 @@ class RequestValidator:
 
     @staticmethod
     def _validate_compact_request(data: Dict[str, Any]) -> None:
-        """Validate compaction-specific requests."""
-        if "input" not in data:
-            raise ValidationError("Compaction requests must have 'input' field")
+        """Validate compaction-specific requests.
 
-        if "instructions" not in data:
-            raise ValidationError("Compaction requests must have 'instructions' field")
+        After normalization, compact requests have messages[] instead of input[].
+        """
+        if "messages" not in data:
+            raise ValidationError("Compaction requests must have 'messages' field after normalization")
 
-        input_data = data["input"]
-        if not isinstance(input_data, (str, list)):
-            raise ValidationError("Compaction input must be string or list")
+        messages = data["messages"]
+        if not isinstance(messages, list):
+            raise ValidationError("Compaction messages must be a list")
 
-        if isinstance(input_data, list) and len(input_data) > 100:
+        if len(messages) > 100:
             raise ValidationError(
-                "Compaction input exceeds maximum length of 100 messages"
+                "Compaction messages exceeds maximum length of 100"
             )

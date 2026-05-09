@@ -203,44 +203,48 @@ class TestCompactionValidation:
     """Test compaction-specific validation."""
 
     def test_valid_compact_request(self):
-        """Test that valid compact request passes validation."""
+        """Test that valid compact request passes validation.
+
+        After normalization, compact requests have messages[] not input[].
+        """
         data = {
             "model": "gemini-2.5-flash-lite",
-            "input": "Long conversation history...",
-            "instructions": "Summarize this conversation",
+            "messages": [
+                {"role": "system", "content": "Summarize this conversation"},
+                {"role": "user", "content": "Long conversation history..."},
+            ],
         }
         RequestValidator.validate_request(data, "/v1/responses/compact")
 
-    def test_compact_without_input_fails(self):
-        """Test that compact request without input fails validation."""
+    def test_compact_without_messages_fails(self):
+        """Test that compact request without messages fails validation."""
         data = {"instructions": "Summarize"}
         with pytest.raises(ValidationError) as exc:
             RequestValidator.validate_request(data, "/v1/responses/compact")
-        assert "must have 'input' field" in str(exc.value)
+        assert "must have 'messages' field" in str(exc.value)
 
-    def test_compact_without_instructions_fails(self):
-        """Test that compact request without instructions fails validation."""
-        data = {"input": "Some content"}
+    def test_compact_without_messages_list_fails(self):
+        """Test that compact request with non-list messages fails validation."""
+        data = {"messages": "not a list"}
         with pytest.raises(ValidationError) as exc:
             RequestValidator.validate_request(data, "/v1/responses/compact")
-        assert "must have 'instructions' field" in str(exc.value)
+        assert "must be a list" in str(exc.value)
 
-    def test_compact_invalid_input_type_fails(self):
-        """Test that compact request with invalid input type fails validation."""
-        data = {"input": 123, "instructions": "Summarize"}
+    def test_compact_invalid_messages_type_fails(self):
+        """Test that compact request with non-list messages fails validation."""
+        data = {"messages": 123}
         with pytest.raises(ValidationError) as exc:
             RequestValidator.validate_request(data, "/v1/responses/compact")
-        assert "must be string or list" in str(exc.value)
+        assert "must be a list" in str(exc.value)
 
-    def test_compact_input_too_long_fails(self):
+    def test_compact_messages_too_long_fails(self):
         """Test that compact request with too many messages fails validation."""
         data = {
-            "input": [{"role": "user", "content": "msg"}] * 101,
-            "instructions": "Summarize",
+            "messages": [{"role": "user", "content": "msg"}] * 101,
         }
         with pytest.raises(ValidationError) as exc:
             RequestValidator.validate_request(data, "/v1/responses/compact")
-        assert "exceeds maximum length of 100 messages" in str(exc.value)
+        assert "maximum length of 100" in str(exc.value)
 
 
 class TestComplexRequests:
