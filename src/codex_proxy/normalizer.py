@@ -5,6 +5,16 @@ from typing import Dict, Any, List
 
 logger = logging.getLogger(__name__)
 
+# Responses API enforces max 64 chars on call_id
+_MAX_CALL_ID_LEN = 64
+
+
+def _clamp_call_id(call_id) -> str:
+    """Clamp call_id to 64 characters (Responses API limit)."""
+    if isinstance(call_id, str) and len(call_id) > _MAX_CALL_ID_LEN:
+        return call_id[:_MAX_CALL_ID_LEN]
+    return call_id or ""
+
 
 class RequestNormalizer:
     """Normalizes various wire APIs (like 'responses') to a internal OpenAI-like structure."""
@@ -143,7 +153,7 @@ class RequestNormalizer:
     def _process_tool_call(
         item: Dict[str, Any], messages: List[Dict[str, Any]], get_last_assistant: Any
     ) -> None:
-        call_id = item.get("call_id") or item.get("id") or f"call_{len(messages)}"
+        call_id = _clamp_call_id(item.get("call_id") or item.get("id")) or f"call_{len(messages)}"
         name = item.get("name")
         item_type = item.get("type")
 
@@ -207,7 +217,7 @@ class RequestNormalizer:
     def _process_tool_output(
         item: Dict[str, Any], messages: List[Dict[str, Any]]
     ) -> None:
-        call_id = item.get("call_id") or item.get("id")
+        call_id = _clamp_call_id(item.get("call_id") or item.get("id"))
         output_raw = item.get("output") or item.get("content") or item.get("stdout", "")
 
         content = ""
