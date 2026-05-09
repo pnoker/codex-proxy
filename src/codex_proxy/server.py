@@ -27,6 +27,9 @@ PROVIDERS: Dict[str, BaseProvider] = {
     "xiaomi": XiaomiProvider(),
 }
 
+# Max request body size (10 MB) — prevents OOM from oversized requests
+_MAX_BODY_SIZE = 10 * 1024 * 1024
+
 # Path pattern: /{provider}/v1/responses[/compact]
 _PROVIDER_PATH_RE = re.compile(
     r"^/([a-z][a-z0-9]*)/v1/responses(/compact)?$"
@@ -108,8 +111,6 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
     def _handle_post(self):
         logger.info(f"POST {self.path}")
 
-        # Config UI save endpoint
-
         # Match provider path pattern
         match = _PROVIDER_PATH_RE.match(self.path.rstrip("/"))
         if not match:
@@ -126,6 +127,12 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         content_length = int(self.headers.get("Content-Length", 0))
         if content_length == 0:
             self.send_error(400, "Empty body")
+            return
+        if content_length > _MAX_BODY_SIZE:
+            self.send_error(
+                413,
+                f"Request body too large: {content_length} bytes (max {_MAX_BODY_SIZE})",
+            )
             return
 
         body = self.rfile.read(content_length)
