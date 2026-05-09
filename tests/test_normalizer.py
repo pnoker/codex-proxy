@@ -373,6 +373,7 @@ class TestComplexScenarios:
                 {"type": "message", "role": "assistant", "content": "Hi"},
                 {
                     "type": "function_call",
+                    "call_id": "call_1",
                     "name": "search",
                     "arguments": {"query": "test"},
                 },
