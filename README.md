@@ -92,6 +92,20 @@ Replace `base_url` path prefix for other providers:
 | Z.AI | `http://localhost:8765/zai/v1` |
 | Xiaomi | `http://localhost:8765/xiaomi/v1` |
 
+## Development
+
+Lint, format, and type-check are configured in [pyproject.toml](pyproject.toml) under `[tool.ruff]` and `[tool.mypy]`. All tooling runs through `uv`:
+
+```bash
+uv run ruff check .            # Lint
+uv run ruff check . --fix      # Lint and auto-fix
+uv run ruff format .           # Format (Black-compatible)
+uv run mypy src                # Static type check
+uv run pytest -q               # Run tests
+```
+
+Ruff replaces Black, isort, Flake8, pyupgrade, and several other tools with one Rust-based binary. Enabled rule families: `E/W/F/I/B/UP/SIM/RUF`. Line length is 100, target is `py312`.
+
 ## Documentation
 
 - [CONTRIBUTING.md](CONTRIBUTING.md) — Development guide and contribution process
