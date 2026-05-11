@@ -39,6 +39,39 @@ _CUSTOM_MODELS_PATH = Path(__file__).resolve().parent.parent.parent / "scripts" 
 _custom_models_cache: list | None = None
 
 
+def _try_parse_json(s: str):
+    stripped = s.strip()
+    if not stripped or stripped[0] not in "{[":
+        return s
+    try:
+        return json.loads(s)
+    except (json.JSONDecodeError, ValueError):
+        return s
+
+
+def _expand_nested_json(obj):
+    """Recursively expand JSON-in-JSON for readable logging.
+
+    Targets two well-known wire fields where a JSON value is shipped as a
+    string per the OpenAI protocol:
+      - tool_calls[*].function.arguments
+      - messages[*].content when role == "tool"
+    """
+    if isinstance(obj, dict):
+        out = {}
+        is_tool_msg = obj.get("role") == "tool"
+        for k, v in obj.items():
+            if (k == "arguments" and isinstance(v, str)) or (
+                k == "content" and is_tool_msg and isinstance(v, str)
+            ):
+                v = _try_parse_json(v)
+            out[k] = _expand_nested_json(v)
+        return out
+    if isinstance(obj, list):
+        return [_expand_nested_json(item) for item in obj]
+    return obj
+
+
 def _load_custom_models() -> list:
     global _custom_models_cache
     if _custom_models_cache is not None:
@@ -172,34 +205,15 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
     @staticmethod
     def _log_request(provider_name: str, data: dict) -> None:
-        messages = data.get("messages", [])
-        tools = data.get("tools", [])
-        parts = [
-            "[%s] %s stream=%s msgs=%d tools=%d"
-            % (
-                provider_name,
-                data.get("model", "?"),
-                data.get("stream", False),
-                len(messages),
-                len(tools),
-            )
-        ]
-        for msg in messages:
-            role = msg.get("role", "?")
-            tc = msg.get("tool_calls")
-            if tc:
-                names = ",".join(c["function"]["name"] for c in tc if "function" in c)
-                parts.append("%s: >>%s" % (role, names))
-            else:
-                content = msg.get("content") or ""
-                parts.append("%s: %s" % (role, content.replace("\n", "\\n")))
-        if tools:
-            names = ",".join(
-                t.get("function", {}).get("name", t.get("name", "?"))
-                for t in tools
-            )
-            parts.append("tools=[%s]" % names)
-        logger.info(" | ".join(parts))
+        summary = "[%s] %s stream=%s msgs=%d tools=%d" % (
+            provider_name,
+            data.get("model", "?"),
+            data.get("stream", False),
+            len(data.get("messages", [])),
+            len(data.get("tools", [])),
+        )
+        body = json.dumps(_expand_nested_json(data), indent=2, ensure_ascii=False)
+        logger.info("%s\n%s", summary, body)
 
     def _handle_models(self):
         custom_models = _load_custom_models()
