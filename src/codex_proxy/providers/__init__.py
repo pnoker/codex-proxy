@@ -1,6 +1,6 @@
 from .base import BaseProvider
-from .zai import ZAIProvider
 from .deepseek import DeepSeekProvider
 from .xiaomi import XiaomiProvider
+from .zai import ZAIProvider
 
-__all__ = ["BaseProvider", "ZAIProvider", "DeepSeekProvider", "XiaomiProvider"]
+__all__ = ["BaseProvider", "DeepSeekProvider", "XiaomiProvider", "ZAIProvider"]

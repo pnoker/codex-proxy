@@ -1,15 +1,16 @@
 import json as _json
-import time
 import logging
+import time
+from typing import Any
+
 import requests
-from typing import Any, Dict, List, Optional
 
 from ..utils import json_dumps, json_loads
 
 logger = logging.getLogger(__name__)
 
 
-def has_local_shell_tool(tools: Optional[List[Dict[str, Any]]]) -> bool:
+def has_local_shell_tool(tools: list[dict[str, Any]] | None) -> bool:
     """True when the client registered the Codex `local_shell` builtin.
 
     Mac/Linux Codex CLI exposes `local_shell` as a builtin tool type. Windows
@@ -21,9 +22,7 @@ def has_local_shell_tool(tools: Optional[List[Dict[str, Any]]]) -> bool:
     return any(t.get("type") == "local_shell" for t in tools)
 
 
-def convert_shell_call(
-    item: Dict[str, Any], *, has_local_shell: bool = False
-) -> None:
+def convert_shell_call(item: dict[str, Any], *, has_local_shell: bool = False) -> None:
     """Convert a function_call item to local_shell_call if it's a shell command.
 
     Shared between sync response mapping and stream finalization. Skipped when
@@ -61,7 +60,7 @@ class BaseStreamHandler:
         handler: Any,
         model: str,
         created_ts: int,
-        request_metadata: Optional[Dict[str, Any]] = None,
+        request_metadata: dict[str, Any] | None = None,
         *,
         provider_name: str = "unknown",
         has_local_shell: bool = False,
@@ -77,21 +76,21 @@ class BaseStreamHandler:
 
         self.full_content = ""
         self.full_reasoning = ""
-        self.reasoning_item: Optional[Dict[str, Any]] = None
+        self.reasoning_item: dict[str, Any] | None = None
         self.reasoning_idx: int = -1
         self.reasoning_item_id: str = ""
-        self.message: Optional[Dict[str, Any]] = None
+        self.message: dict[str, Any] | None = None
         self.message_idx: int = -1
         self.item_id: str = ""
         self.idx: int = 0
 
-        self.tool_calls: Dict[int, Dict[str, Any]] = {}
+        self.tool_calls: dict[int, dict[str, Any]] = {}
 
     # ------------------------------------------------------------------
     # SSE helpers
     # ------------------------------------------------------------------
 
-    def _send_event(self, evt_type: str, data: Dict[str, Any]) -> None:
+    def _send_event(self, evt_type: str, data: dict[str, Any]) -> None:
         self.seq_num += 1
         event = {
             "id": f"evt_{int(time.time() * 1000)}_{self.seq_num}",
@@ -101,13 +100,7 @@ class BaseStreamHandler:
             "sequence_number": self.seq_num,
             **data,
         }
-        payload = (
-            b"event: "
-            + evt_type.encode()
-            + b"\ndata: "
-            + json_dumps(event)
-            + b"\n\n"
-        )
+        payload = b"event: " + evt_type.encode() + b"\ndata: " + json_dumps(event) + b"\n\n"
         self.handler.wfile.write(payload)
         self.handler.wfile.flush()
 
@@ -143,9 +136,7 @@ class BaseStreamHandler:
                     break
                 self._handle_line(line[6:])
         except Exception as e:
-            logger.error(
-                f"Error in {self.provider_name} stream processing: {e}"
-            )
+            logger.error(f"Error in {self.provider_name} stream processing: {e}")
             stream_error = e
         finally:
             self._finalize(response_obj, stream_error=stream_error)
@@ -179,24 +170,19 @@ class BaseStreamHandler:
                 self._handle_content(content)
 
         except Exception as e:
-            logger.debug(
-                f"Failed to parse {self.provider_name} stream line: {e}"
-            )
+            logger.debug(f"Failed to parse {self.provider_name} stream line: {e}")
 
     # ------------------------------------------------------------------
     # Delta handlers
     # ------------------------------------------------------------------
 
-    def _handle_tool_calls(self, tool_call_deltas: List[Dict[str, Any]]) -> None:
+    def _handle_tool_calls(self, tool_call_deltas: list[dict[str, Any]]) -> None:
         for tc_delta in tool_call_deltas:
             idx = tc_delta.get("index", 0)
             if idx not in self.tool_calls:
                 output_idx = self.idx
                 self.idx += 1
-                call_id = (
-                    tc_delta.get("id")
-                    or f"call_{int(time.time() * 1000)}_{output_idx}"
-                )
+                call_id = tc_delta.get("id") or f"call_{int(time.time() * 1000)}_{output_idx}"
 
                 tool_call = {
                     "id": call_id,
@@ -277,9 +263,7 @@ class BaseStreamHandler:
     def _init_reasoning(self) -> None:
         self.reasoning_idx = self.idx
         self.idx += 1
-        self.reasoning_item_id = (
-            f"rs_{int(time.time() * 1000)}_{self.reasoning_idx}"
-        )
+        self.reasoning_item_id = f"rs_{int(time.time() * 1000)}_{self.reasoning_idx}"
         self.reasoning_item = {
             "id": self.reasoning_item_id,
             "type": "reasoning",
@@ -319,9 +303,7 @@ class BaseStreamHandler:
     # Content-level done events
     # ------------------------------------------------------------------
 
-    def _emit_content_done_events(
-        self, out_idx: int, item: Dict[str, Any]
-    ) -> None:
+    def _emit_content_done_events(self, out_idx: int, item: dict[str, Any]) -> None:
         item_type = item.get("type")
         if item_type == "message" and item.get("content"):
             self._send_event(
@@ -352,20 +334,22 @@ class BaseStreamHandler:
 
     def _finalize(
         self,
-        response_obj: Dict[str, Any],
+        response_obj: dict[str, Any],
         *,
-        stream_error: Optional[Exception] = None,
+        stream_error: Exception | None = None,
     ) -> None:
         logger.info(
             "[%s] << stream content=%d reasoning=%d calls=%d",
             self.provider_name,
-            len(self.full_content), len(self.full_reasoning), len(self.tool_calls),
+            len(self.full_content),
+            len(self.full_reasoning),
+            len(self.tool_calls),
         )
 
         completed = stream_error is None
         item_status = "completed" if completed else "incomplete"
 
-        items_to_close: List[tuple] = []
+        items_to_close: list[tuple] = []
         if self.reasoning_item:
             items_to_close.append((self.reasoning_idx, self.reasoning_item))
         if self.message:
@@ -375,7 +359,7 @@ class BaseStreamHandler:
 
         items_to_close.sort(key=lambda x: x[0])
 
-        final_output: List[Dict[str, Any]] = []
+        final_output: list[dict[str, Any]] = []
         for out_idx, item in items_to_close:
             item["status"] = item_status
 

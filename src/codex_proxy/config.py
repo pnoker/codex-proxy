@@ -1,5 +1,6 @@
 import os
 from dataclasses import dataclass, field
+
 from .exceptions import ConfigurationError
 
 
@@ -10,27 +11,21 @@ def _validate_port(port_str: str) -> int:
             raise ConfigurationError(f"Port must be between 1 and 65535, got: {port}")
         return port
     except ValueError as e:
-        raise ConfigurationError(f"Invalid port value: {port_str}: {e}")
+        raise ConfigurationError(f"Invalid port value: {port_str}: {e}") from e
 
 
 def _validate_url(url: str, name: str) -> str:
     if not url.startswith(("http://", "https://")):
-        raise ConfigurationError(
-            f"{name} must be a valid URL starting with http:// or https://"
-        )
+        raise ConfigurationError(f"{name} must be a valid URL starting with http:// or https://")
     return url
 
 
 @dataclass
 class Config:
     # Server
-    host: str = field(
-        default_factory=lambda: os.environ.get("CODEX_PROXY_HOST", "127.0.0.1")
-    )
+    host: str = field(default_factory=lambda: os.environ.get("CODEX_PROXY_HOST", "127.0.0.1"))
     port: int = field(
-        default_factory=lambda: _validate_port(
-            os.environ.get("CODEX_PROXY_PORT", "8765")
-        )
+        default_factory=lambda: _validate_port(os.environ.get("CODEX_PROXY_PORT", "8765"))
     )
     # Request timeouts (in seconds)
     request_timeout_connect: int = 10
@@ -48,9 +43,7 @@ class Config:
             "Z.AI URL",
         )
     )
-    zai_api_key: str = field(
-        default_factory=lambda: os.environ.get("CODEX_PROXY_ZAI_API_KEY", "")
-    )
+    zai_api_key: str = field(default_factory=lambda: os.environ.get("CODEX_PROXY_ZAI_API_KEY", ""))
     zai_compaction_model: str = field(
         default_factory=lambda: os.environ.get("CODEX_PROXY_ZAI_COMPACTION_MODEL", "glm-4.6")
     )
@@ -69,7 +62,9 @@ class Config:
         default_factory=lambda: os.environ.get("CODEX_PROXY_DEEPSEEK_API_KEY", "")
     )
     deepseek_compaction_model: str = field(
-        default_factory=lambda: os.environ.get("CODEX_PROXY_DEEPSEEK_COMPACTION_MODEL", "deepseek-chat")
+        default_factory=lambda: os.environ.get(
+            "CODEX_PROXY_DEEPSEEK_COMPACTION_MODEL", "deepseek-chat"
+        )
     )
 
     # Xiaomi
@@ -86,7 +81,9 @@ class Config:
         default_factory=lambda: os.environ.get("CODEX_PROXY_XIAOMI_API_KEY", "")
     )
     xiaomi_compaction_model: str = field(
-        default_factory=lambda: os.environ.get("CODEX_PROXY_XIAOMI_COMPACTION_MODEL", "mimo-v2.5-pro")
+        default_factory=lambda: os.environ.get(
+            "CODEX_PROXY_XIAOMI_COMPACTION_MODEL", "mimo-v2.5-pro"
+        )
     )
 
     # Logging
@@ -94,10 +91,9 @@ class Config:
         default_factory=lambda: os.environ.get("CODEX_PROXY_LOG_LEVEL", "DEBUG").upper()
     )
     debug_mode: bool = field(
-        default_factory=lambda: (
-            os.environ.get("CODEX_PROXY_DEBUG", "false").lower() == "true"
-        )
+        default_factory=lambda: os.environ.get("CODEX_PROXY_DEBUG", "false").lower() == "true"
     )
+
 
 # Global Config Instance
 config = Config()

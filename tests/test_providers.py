@@ -1,11 +1,12 @@
 """Unit tests for provider registry and routing."""
 
 import pytest
-from codex_proxy.server import PROVIDERS
+
 from codex_proxy.providers.base import BaseProvider
-from codex_proxy.providers.zai import ZAIProvider
 from codex_proxy.providers.deepseek import DeepSeekProvider
 from codex_proxy.providers.xiaomi import XiaomiProvider
+from codex_proxy.providers.zai import ZAIProvider
+from codex_proxy.server import PROVIDERS
 
 
 class TestProviderRegistry:

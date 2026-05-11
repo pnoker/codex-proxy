@@ -1,7 +1,8 @@
 import logging
-from typing import Dict, Any
-from .base import BaseProvider
+from typing import Any
+
 from ..config import config
+from .base import BaseProvider
 
 logger = logging.getLogger(__name__)
 
@@ -24,20 +25,18 @@ class XiaomiProvider(BaseProvider):
             url += "/chat/completions"
         return url
 
-    def handle_request(self, data: Dict[str, Any], handler: Any) -> None:
+    def handle_request(self, data: dict[str, Any], handler: Any) -> None:
         payload = self._prepare_payload(data)
         self._execute_request(payload, data, handler)
 
-    def _prepare_payload(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def _prepare_payload(self, data: dict[str, Any]) -> dict[str, Any]:
         payload = {
             "model": data.get("model", ""),
             "messages": data.get("messages", []),
             "stream": data.get("stream", False),
         }
         if "tools" in data:
-            payload["tools"] = [
-                t for t in data["tools"] if t.get("type") == "function"
-            ]
+            payload["tools"] = [t for t in data["tools"] if t.get("type") == "function"]
             if not payload["tools"]:
                 del payload["tools"]
         for key in ("tool_choice", "temperature", "top_p", "max_tokens"):
@@ -45,13 +44,13 @@ class XiaomiProvider(BaseProvider):
                 payload[key] = data[key]
         return payload
 
-    def _transform_messages(self, payload: Dict[str, Any]) -> None:
+    def _transform_messages(self, payload: dict[str, Any]) -> None:
         for m in payload.get("messages", []):
             if m.get("role") == "developer":
                 m["role"] = "system"
 
     def _execute_request(
-        self, payload: Dict[str, Any], original_data: Dict[str, Any], handler: Any
+        self, payload: dict[str, Any], original_data: dict[str, Any], handler: Any
     ) -> None:
         self._transform_messages(payload)
 
@@ -71,9 +70,7 @@ class XiaomiProvider(BaseProvider):
             ) as resp:
                 logger.info("Xiaomi response status: %s", resp.status_code)
                 if resp.status_code >= 400:
-                    logger.error(
-                        "Xiaomi error response: %s", resp.text[:500]
-                    )
+                    logger.error("Xiaomi error response: %s", resp.text[:500])
                 if stream:
                     self._handle_stream_response(resp, payload, handler, original_data)
                 else:

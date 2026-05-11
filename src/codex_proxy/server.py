@@ -1,27 +1,26 @@
+import contextlib
 import json
 import logging
 import re
 import socket
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from socketserver import ThreadingMixIn
-from typing import Dict
-
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from socketserver import ThreadingMixIn
 
 from .config import config
-from .exceptions import ProxyError, ProviderError, ValidationError
+from .exceptions import ProviderError, ProxyError, ValidationError
+from .normalizer import RequestNormalizer
 from .providers.base import BaseProvider
-from .providers.zai import ZAIProvider
 from .providers.deepseek import DeepSeekProvider
 from .providers.xiaomi import XiaomiProvider
-from .normalizer import RequestNormalizer
+from .providers.zai import ZAIProvider
 from .utils import json_loads
 from .validator import RequestValidator
 
 logger = logging.getLogger(__name__)
 
 # Provider registry: name -> provider instance
-PROVIDERS: Dict[str, BaseProvider] = {
+PROVIDERS: dict[str, BaseProvider] = {
     "zai": ZAIProvider(),
     "deepseek": DeepSeekProvider(),
     "xiaomi": XiaomiProvider(),
@@ -31,11 +30,11 @@ PROVIDERS: Dict[str, BaseProvider] = {
 _MAX_BODY_SIZE = 10 * 1024 * 1024
 
 # Path pattern: /{provider}/v1/responses[/compact]
-_PROVIDER_PATH_RE = re.compile(
-    r"^/([a-z][a-z0-9]*)/v1/responses(/compact)?$"
-)
+_PROVIDER_PATH_RE = re.compile(r"^/([a-z][a-z0-9]*)/v1/responses(/compact)?$")
 
-_CUSTOM_MODELS_PATH = Path(__file__).resolve().parent.parent.parent / "scripts" / "custom_models.json"
+_CUSTOM_MODELS_PATH = (
+    Path(__file__).resolve().parent.parent.parent / "scripts" / "custom_models.json"
+)
 _custom_models_cache: list | None = None
 
 
@@ -78,7 +77,7 @@ def _load_custom_models() -> list:
         return _custom_models_cache
     if _CUSTOM_MODELS_PATH.exists():
         try:
-            with open(_CUSTOM_MODELS_PATH, "r") as f:
+            with open(_CUSTOM_MODELS_PATH) as f:
                 data = json.load(f)
             _custom_models_cache = data.get("models", [])
             logger.info(
@@ -103,16 +102,11 @@ class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
 
     def server_bind(self):
         super().server_bind()
-        try:
-            self.socket.setsockopt(
-                socket.IPPROTO_TCP, socket.TCP_NODELAY, 1
-            )
-        except OSError:
-            pass
+        with contextlib.suppress(OSError):
+            self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
 
 class ProxyRequestHandler(BaseHTTPRequestHandler):
-
     def do_GET(self):
         if _MODELS_PATH_RE.match(self.path.rstrip("/")):
             self._handle_models()
@@ -173,7 +167,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         try:
             data = json_loads(body)
         except (json.JSONDecodeError, ValueError) as e:
-            raise ValidationError(f"Invalid JSON: {e}")
+            raise ValidationError(f"Invalid JSON: {e}") from e
 
         # Normalize BEFORE validate — Responses API uses input[] not messages[],
         # so the validator would skip most checks if run before normalization.
@@ -205,13 +199,11 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
 
     @staticmethod
     def _log_request(provider_name: str, data: dict) -> None:
-        summary = "[%s] %s stream=%s msgs=%d tools=%d" % (
-            provider_name,
-            data.get("model", "?"),
-            data.get("stream", False),
-            len(data.get("messages", [])),
-            len(data.get("tools", [])),
-        )
+        model = data.get("model", "?")
+        stream = data.get("stream", False)
+        n_msgs = len(data.get("messages", []))
+        n_tools = len(data.get("tools", []))
+        summary = f"[{provider_name}] {model} stream={stream} msgs={n_msgs} tools={n_tools}"
         body = json.dumps(_expand_nested_json(data), indent=2, ensure_ascii=False)
         logger.info("%s\n%s", summary, body)
 
@@ -232,9 +224,7 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header(
-            "Access-Control-Allow-Headers", "Content-Type, Authorization"
-        )
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         self.end_headers()
 
     def log_message(self, format, *args):

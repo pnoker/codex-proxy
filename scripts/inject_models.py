@@ -33,15 +33,17 @@ def _load_custom_models() -> list[dict]:
             file=sys.stderr,
         )
         sys.exit(1)
-    with open(_CUSTOM_MODELS_FILE, "r") as f:
+    with open(_CUSTOM_MODELS_FILE) as f:
         return json.load(f)
 
 
 def default_cache_path() -> Path:
-    return Path(os.environ.get(
-        "CODEX_CACHE_PATH",
-        Path.home() / ".codex" / "models_cache.json",
-    ))
+    return Path(
+        os.environ.get(
+            "CODEX_CACHE_PATH",
+            Path.home() / ".codex" / "models_cache.json",
+        )
+    )
 
 
 def load_cache(path: Path) -> dict:
@@ -49,7 +51,7 @@ def load_cache(path: Path) -> dict:
         print(f"Error: cache file not found: {path}", file=sys.stderr)
         print("Hint: run Codex CLI once first to generate it.", file=sys.stderr)
         sys.exit(1)
-    with open(path, "r") as f:
+    with open(path) as f:
         return json.load(f)
 
 
@@ -68,8 +70,8 @@ def list_models(cache_path: Path) -> None:
     for m in data["models"]:
         src = "injected" if m["slug"] in custom_slugs else "official"
         print(
-            f"{m['slug']:<25s} {str(m.get('supports_reasoning_summaries', '?')):>10s}"
-            f" {str(m.get('supports_parallel_tool_calls', '?')):>9s}"
+            f"{m['slug']:<25s} {m.get('supports_reasoning_summaries', '?')!s:>10s}"
+            f" {m.get('supports_parallel_tool_calls', '?')!s:>9s}"
             f" {m.get('context_window', '?'):>8}  {src}"
         )
     print(f"\nTotal: {len(data['models'])} models")
@@ -108,8 +110,8 @@ def inject(cache_path: Path, dry_run: bool = False) -> None:
     print(f"  Added: {added}, Updated: {updated}, Total: {len(data['models'])}")
     for cm in custom_models:
         print(
-            f"  {cm['slug']:<20s} reasoning={str(cm.get('supports_reasoning_summaries', '?')):5s}"
-            f"  parallel={str(cm.get('supports_parallel_tool_calls', '?')):5s}"
+            f"  {cm['slug']:<20s} reasoning={cm.get('supports_reasoning_summaries', '?')!s:5s}"
+            f"  parallel={cm.get('supports_parallel_tool_calls', '?')!s:5s}"
             f"  ctx={cm.get('context_window', '?')}"
         )
 
@@ -119,11 +121,13 @@ def main():
         description="Inject custom model metadata into Codex CLI's models_cache.json",
     )
     parser.add_argument(
-        "--dry-run", action="store_true",
+        "--dry-run",
+        action="store_true",
         help="Preview changes without writing to disk",
     )
     parser.add_argument(
-        "--list", action="store_true",
+        "--list",
+        action="store_true",
         help="List all models in the cache with their source",
     )
     args = parser.parse_args()

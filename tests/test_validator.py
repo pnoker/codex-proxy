@@ -1,8 +1,9 @@
 """Unit tests for request validation."""
 
 import pytest
-from codex_proxy.validator import RequestValidator
+
 from codex_proxy.exceptions import ValidationError
+from codex_proxy.validator import RequestValidator
 
 
 class TestModelValidation:

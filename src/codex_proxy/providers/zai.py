@@ -1,8 +1,9 @@
 import copy
 import logging
-from typing import Dict, Any
-from .base import BaseProvider
+from typing import Any
+
 from ..config import config
+from .base import BaseProvider
 
 logger = logging.getLogger(__name__)
 
@@ -29,12 +30,12 @@ class ZAIProvider(BaseProvider):
             url += "/chat/completions"
         return url
 
-    def handle_request(self, data: Dict[str, Any], handler: Any) -> None:
+    def handle_request(self, data: dict[str, Any], handler: Any) -> None:
         payload = self._prepare_payload(data)
         self._transform_payload(payload)
         self._execute_request(payload, data, handler)
 
-    def _prepare_payload(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def _prepare_payload(self, data: dict[str, Any]) -> dict[str, Any]:
         payload = {
             "model": data.get("model", ""),
             "messages": data.get("messages", []),
@@ -52,12 +53,12 @@ class ZAIProvider(BaseProvider):
             payload["max_tokens"] = data["max_tokens"]
         return payload
 
-    def _transform_payload(self, payload: Dict[str, Any]) -> None:
+    def _transform_payload(self, payload: dict[str, Any]) -> None:
         for m in payload.get("messages", []):
             if m.get("role") == "developer":
                 m["role"] = "system"
 
-        if "tools" in payload and payload["tools"]:
+        if payload.get("tools"):
             transformed_tools = []
             for tool in payload["tools"]:
                 ttype = tool.get("type")
@@ -79,7 +80,7 @@ class ZAIProvider(BaseProvider):
             payload["tools"] = transformed_tools
 
     def _execute_request(
-        self, payload: Dict[str, Any], original_data: Dict[str, Any], handler: Any
+        self, payload: dict[str, Any], original_data: dict[str, Any], handler: Any
     ) -> None:
         headers = self._build_headers(original_data)
         auth_header = handler.headers.get("Authorization")

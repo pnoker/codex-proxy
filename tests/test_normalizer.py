@@ -65,19 +65,13 @@ class TestInputNormalization:
 
     def test_developer_role_mapping(self):
         """Test that developer role is mapped to system."""
-        data = {
-            "input": [
-                {"type": "message", "role": "developer", "content": "System prompt"}
-            ]
-        }
+        data = {"input": [{"type": "message", "role": "developer", "content": "System prompt"}]}
         result = RequestNormalizer.normalize(data)
         assert result["messages"][0]["role"] == "system"
 
     def test_model_role_handling(self):
         """Test that model role is treated as assistant."""
-        data = {
-            "input": [{"type": "message", "role": "model", "content": "AI response"}]
-        }
+        data = {"input": [{"type": "message", "role": "model", "content": "AI response"}]}
         result = RequestNormalizer.normalize(data)
         assert result["messages"][0]["role"] == "assistant"
 
@@ -191,23 +185,13 @@ class TestToolCallNormalization:
         assert result["messages"][0]["role"] == "assistant"
         assert "tool_calls" in result["messages"][0]
         assert result["messages"][0]["tool_calls"][0]["function"]["name"] == "search"
-        assert (
-            '"query": "test"'
-            in result["messages"][0]["tool_calls"][0]["function"]["arguments"]
-        )
+        assert '"query": "test"' in result["messages"][0]["tool_calls"][0]["function"]["arguments"]
 
     def test_command_execution(self):
         """Test that command execution is normalized to function call."""
-        data = {
-            "input": [
-                {"type": "commandExecution", "command": ["ls", "-la"], "cwd": "/home"}
-            ]
-        }
+        data = {"input": [{"type": "commandExecution", "command": ["ls", "-la"], "cwd": "/home"}]}
         result = RequestNormalizer.normalize(data)
-        assert (
-            result["messages"][0]["tool_calls"][0]["function"]["name"]
-            == "run_shell_command"
-        )
+        assert result["messages"][0]["tool_calls"][0]["function"]["name"] == "run_shell_command"
 
     def test_local_shell_call(self):
         """Test that local shell call is normalized."""
@@ -225,20 +209,13 @@ class TestToolCallNormalization:
             ]
         }
         result = RequestNormalizer.normalize(data)
-        assert (
-            result["messages"][0]["tool_calls"][0]["function"]["name"]
-            == "local_shell_command"
-        )
+        assert result["messages"][0]["tool_calls"][0]["function"]["name"] == "local_shell_command"
 
     def test_web_search_call(self):
         """Test that web search call is normalized."""
-        data = {
-            "input": [{"type": "web_search_call", "action": {"query": "test search"}}]
-        }
+        data = {"input": [{"type": "web_search_call", "action": {"query": "test search"}}]}
         result = RequestNormalizer.normalize(data)
-        assert (
-            result["messages"][0]["tool_calls"][0]["function"]["name"] == "web_search"
-        )
+        assert result["messages"][0]["tool_calls"][0]["function"]["name"] == "web_search"
 
 
 class TestToolOutputNormalization:

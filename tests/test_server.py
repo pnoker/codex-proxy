@@ -1,9 +1,11 @@
 """Integration tests for the proxy server."""
 
 import json
-import pytest
 from unittest.mock import MagicMock, patch
-from codex_proxy.server import ProxyRequestHandler, PROVIDERS
+
+import pytest
+
+from codex_proxy.server import PROVIDERS, ProxyRequestHandler
 
 
 class MockRequest:
@@ -127,9 +129,7 @@ class TestRequestValidation:
         assert handler.send_error.call_args[0][0] == 404
 
     def test_old_v1_endpoint_returns_404(self):
-        handler, _ = create_handler(
-            {"model": "test"}, "/v1/responses"
-        )
+        handler, _ = create_handler({"model": "test"}, "/v1/responses")
         handler._handle_post()
         handler.send_error.assert_called_once()
         assert handler.send_error.call_args[0][0] == 404
@@ -261,9 +261,7 @@ class TestErrorHandling:
             "/zai/v1/responses",
         )
 
-        with patch.object(
-            PROVIDERS["zai"], "handle_request", side_effect=ProviderError("fail")
-        ):
+        with patch.object(PROVIDERS["zai"], "handle_request", side_effect=ProviderError("fail")):
             handler.do_POST()
             handler.send_error.assert_called_once()
             assert handler.send_error.call_args[0][0] == 502

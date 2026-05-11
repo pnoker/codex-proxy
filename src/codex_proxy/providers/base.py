@@ -1,13 +1,14 @@
-import time
 import logging
-import requests
+import time
 from abc import ABC, abstractmethod
 from http.server import BaseHTTPRequestHandler
-from typing import Any, Dict, Optional
+from typing import Any
 
-from .base_stream import BaseStreamHandler, convert_shell_call, has_local_shell_tool
-from ..utils import create_session, json_dumps
+import requests
+
 from ..config import config
+from ..utils import create_session, json_dumps
+from .base_stream import BaseStreamHandler, convert_shell_call, has_local_shell_tool
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +35,7 @@ class BaseProvider(ABC):
         self.session = create_session()
 
     @abstractmethod
-    def handle_request(
-        self, data: Dict[str, Any], handler: BaseHTTPRequestHandler
-    ) -> None:
+    def handle_request(self, data: dict[str, Any], handler: BaseHTTPRequestHandler) -> None:
         pass
 
     @abstractmethod
@@ -56,8 +55,8 @@ class BaseProvider(ABC):
         return False
 
     @staticmethod
-    def _build_headers(data: Dict[str, Any]) -> Dict[str, str]:
-        headers: Dict[str, str] = {}
+    def _build_headers(data: dict[str, Any]) -> dict[str, str]:
+        headers: dict[str, str] = {}
         ctx = data.get("_headers", {})
         for key in _FORWARD_HEADERS:
             val = ctx.get(key)
@@ -79,7 +78,8 @@ class BaseProvider(ABC):
             if attempt == _MAX_429_RETRIES:
                 logger.warning(
                     "[%s] 429 retry exhausted after %d attempts",
-                    self.provider_name, _MAX_429_RETRIES,
+                    self.provider_name,
+                    _MAX_429_RETRIES,
                 )
                 return resp
 
@@ -94,7 +94,10 @@ class BaseProvider(ABC):
 
             logger.warning(
                 "[%s] 429 rate limited, retry %d/%d after %.1fs",
-                self.provider_name, attempt + 1, _MAX_429_RETRIES, wait,
+                self.provider_name,
+                attempt + 1,
+                _MAX_429_RETRIES,
+                wait,
             )
             time.sleep(wait)
             backoff = min(backoff * 2, _MAX_BACKOFF)
@@ -108,9 +111,9 @@ class BaseProvider(ABC):
     def _handle_stream_response(
         self,
         resp: requests.Response,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         handler: Any,
-        original_data: Optional[Dict[str, Any]] = None,
+        original_data: dict[str, Any] | None = None,
     ) -> None:
         handler.send_response(resp.status_code)
         handler.send_header("Content-Type", "text/event-stream; charset=utf-8")
@@ -118,11 +121,12 @@ class BaseProvider(ABC):
         handler.end_headers()
 
         created_ts = int(time.time())
-        has_local_shell = has_local_shell_tool(
-            (original_data or payload).get("tools")
-        )
+        has_local_shell = has_local_shell_tool((original_data or payload).get("tools"))
         stream_handler = BaseStreamHandler(
-            handler, payload["model"], created_ts, payload,
+            handler,
+            payload["model"],
+            created_ts,
+            payload,
             provider_name=self.provider_name,
             has_local_shell=has_local_shell,
         )
@@ -135,7 +139,7 @@ class BaseProvider(ABC):
             )
 
     def _handle_sync_response(
-        self, resp: requests.Response, original_data: Dict[str, Any], handler: Any
+        self, resp: requests.Response, original_data: dict[str, Any], handler: Any
     ) -> None:
         handler.send_response(resp.status_code)
         handler.send_header("Content-Type", "application/json")
@@ -154,16 +158,14 @@ class BaseProvider(ABC):
         self,
         resp: requests.Response,
         handler: Any,
-        original_data: Optional[Dict[str, Any]] = None,
+        original_data: dict[str, Any] | None = None,
     ) -> None:
         r_data = resp.json()
         choice = r_data["choices"][0]
         message = choice["message"]
         usage = r_data.get("usage", {})
 
-        has_local_shell = has_local_shell_tool(
-            (original_data or {}).get("tools")
-        )
+        has_local_shell = has_local_shell_tool((original_data or {}).get("tools"))
 
         output_items = []
         if "tool_calls" in message:
@@ -206,7 +208,8 @@ class BaseProvider(ABC):
         handler.wfile.write(json_dumps(resp_obj))
         logger.info(
             "[%s] << 200 items=%d tokens=%d/%d/%d",
-            self.provider_name, len(output_items),
+            self.provider_name,
+            len(output_items),
             resp_obj["usage"]["prompt_tokens"],
             resp_obj["usage"]["completion_tokens"],
             resp_obj["usage"]["total_tokens"],
@@ -216,9 +219,7 @@ class BaseProvider(ABC):
     # Shared compaction handler
     # ------------------------------------------------------------------
 
-    def handle_compact(
-        self, data: Dict[str, Any], handler: BaseHTTPRequestHandler
-    ) -> None:
+    def handle_compact(self, data: dict[str, Any], handler: BaseHTTPRequestHandler) -> None:
         compaction_model = data.get("model") or self._get_compaction_model()
 
         messages = data.get("input", [])
@@ -272,9 +273,7 @@ class BaseProvider(ABC):
                 choice = r_data.get("choices", [{}])[0]
                 final_text = choice.get("message", {}).get("content", "")
 
-                result = {
-                    "output": [{"type": "compaction", "encrypted_content": final_text}]
-                }
+                result = {"output": [{"type": "compaction", "encrypted_content": final_text}]}
 
                 handler.send_response(200)
                 handler.send_header("Content-Type", "application/json")

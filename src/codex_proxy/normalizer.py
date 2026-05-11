@@ -1,7 +1,7 @@
 import copy
 import json
 import logging
-from typing import Dict, Any, List
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ class RequestNormalizer:
     """Normalizes various wire APIs (like 'responses') to a internal OpenAI-like structure."""
 
     @staticmethod
-    def normalize(data: Dict[str, Any]) -> Dict[str, Any]:
+    def normalize(data: dict[str, Any]) -> dict[str, Any]:
         """Normalize the request data."""
         data = copy.copy(data)
         messages = []
@@ -75,9 +75,7 @@ class RequestNormalizer:
         return data
 
     @staticmethod
-    def _process_input_item(
-        item: Dict[str, Any], messages: List[Dict[str, Any]]
-    ) -> None:
+    def _process_input_item(item: dict[str, Any], messages: list[dict[str, Any]]) -> None:
         item_type = item.get("type", "message")
 
         def get_last_assistant():
@@ -158,7 +156,7 @@ class RequestNormalizer:
 
     @staticmethod
     def _process_tool_call(
-        item: Dict[str, Any], messages: List[Dict[str, Any]], get_last_assistant: Any
+        item: dict[str, Any], messages: list[dict[str, Any]], get_last_assistant: Any
     ) -> None:
         call_id = _clamp_call_id(item.get("call_id") or item.get("id")) or f"call_{len(messages)}"
         name = item.get("name")
@@ -216,14 +214,10 @@ class RequestNormalizer:
             if it_sig:
                 amsg["thought_signature"] = it_sig
             if it_th:
-                amsg["reasoning_content"] = (
-                    amsg.get("reasoning_content") or ""
-                ) + it_th
+                amsg["reasoning_content"] = (amsg.get("reasoning_content") or "") + it_th
 
     @staticmethod
-    def _process_tool_output(
-        item: Dict[str, Any], messages: List[Dict[str, Any]]
-    ) -> None:
+    def _process_tool_output(item: dict[str, Any], messages: list[dict[str, Any]]) -> None:
         call_id = _clamp_call_id(item.get("call_id") or item.get("id"))
         output_raw = item.get("output") or item.get("content") or item.get("stdout", "")
 
@@ -238,16 +232,19 @@ class RequestNormalizer:
             for part in output_raw:
                 if isinstance(part, str):
                     content += part
-                elif isinstance(part, dict):
-                    if part.get("type") in ("input_text", "text", "output_text"):
-                        content += part.get("text", "")
+                elif isinstance(part, dict) and part.get("type") in (
+                    "input_text",
+                    "text",
+                    "output_text",
+                ):
+                    content += part.get("text", "")
 
         if not content and item.get("stderr"):
             content = f"Error: {item['stderr']}"
         messages.append({"role": "tool", "tool_call_id": call_id, "content": content})
 
     @staticmethod
-    def _ensure_tool_call_ids(messages: List[Dict[str, Any]]) -> None:
+    def _ensure_tool_call_ids(messages: list[dict[str, Any]]) -> None:
         """Ensure every tool_call has an id field.
 
         Some providers reject requests where tool_calls lack an id.
@@ -258,7 +255,7 @@ class RequestNormalizer:
                     tc["id"] = f"call_{id(tc) & 0xFFFFFFFF:08x}"
 
     @staticmethod
-    def _fix_missing_tool_responses(messages: List[Dict[str, Any]]) -> None:
+    def _fix_missing_tool_responses(messages: list[dict[str, Any]]) -> None:
         """Insert empty tool results for any tool_call that has no matching response.
 
         Many providers reject requests where a tool_call is not followed by a
@@ -272,22 +269,24 @@ class RequestNormalizer:
 
         # Find orphaned tool_calls and insert empty responses
         insertions = []
-        for i, msg in enumerate(messages):
+        for msg in messages:
             for tc in msg.get("tool_calls", []):
                 tc_id = tc.get("id")
                 if tc_id and tc_id not in result_ids:
-                    insertions.append({
-                        "role": "tool",
-                        "tool_call_id": tc_id,
-                        "content": "",
-                    })
+                    insertions.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tc_id,
+                            "content": "",
+                        }
+                    )
                     result_ids.add(tc_id)  # avoid duplicates
 
         if insertions:
             messages.extend(insertions)
 
     @staticmethod
-    def _ensure_tool_call_ids(messages: List[Dict[str, Any]]) -> None:
+    def _ensure_tool_call_ids(messages: list[dict[str, Any]]) -> None:
         """Ensure every tool_call has an id field.
 
         Some providers reject requests where tool_calls lack an id.
@@ -298,7 +297,7 @@ class RequestNormalizer:
                     tc["id"] = f"call_{id(tc) & 0xFFFFFFFF:08x}"
 
     @staticmethod
-    def _fix_missing_tool_responses(messages: List[Dict[str, Any]]) -> None:
+    def _fix_missing_tool_responses(messages: list[dict[str, Any]]) -> None:
         """Insert empty tool results for any tool_call that has no matching response.
 
         Many providers reject requests where a tool_call is not followed by a
@@ -310,22 +309,24 @@ class RequestNormalizer:
                 result_ids.add(msg["tool_call_id"])
 
         insertions = []
-        for i, msg in enumerate(messages):
+        for msg in messages:
             for tc in msg.get("tool_calls", []):
                 tc_id = tc.get("id")
                 if tc_id and tc_id not in result_ids:
-                    insertions.append({
-                        "role": "tool",
-                        "tool_call_id": tc_id,
-                        "content": "",
-                    })
+                    insertions.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tc_id,
+                            "content": "",
+                        }
+                    )
                     result_ids.add(tc_id)
 
         if insertions:
             messages.extend(insertions)
 
     @staticmethod
-    def normalize_for_compact(data: Dict[str, Any]) -> Dict[str, Any]:
+    def normalize_for_compact(data: dict[str, Any]) -> dict[str, Any]:
         """Normalize a compaction request.
 
         Compaction uses Responses API input[] format but needs Chat Completions
@@ -358,7 +359,7 @@ class RequestNormalizer:
         return data
 
     @staticmethod
-    def _normalize_tools(tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _normalize_tools(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
         normalized_tools = []
         for t in tools:
             if t.get("type") == "function" and "function" not in t:

@@ -1,6 +1,6 @@
 """Input validation for codex-proxy requests."""
 
-from typing import Dict, Any, List
+from typing import Any
 
 from .exceptions import ValidationError
 
@@ -9,7 +9,7 @@ class RequestValidator:
     """Validates incoming proxy requests."""
 
     @staticmethod
-    def validate_request(data: Dict[str, Any], path: str) -> None:
+    def validate_request(data: dict[str, Any], path: str) -> None:
         """
         Validate incoming request data.
 
@@ -35,17 +35,13 @@ class RequestValidator:
         if "temperature" in data:
             temp = data["temperature"]
             if not isinstance(temp, (int, float)) or temp < 0 or temp > 2:
-                raise ValidationError(
-                    f"temperature must be between 0 and 2, got: {temp}"
-                )
+                raise ValidationError(f"temperature must be between 0 and 2, got: {temp}")
 
         # Validate max_tokens
         if "max_tokens" in data:
             max_tokens = data["max_tokens"]
             if not isinstance(max_tokens, int) or max_tokens < 1 or max_tokens > 128000:
-                raise ValidationError(
-                    f"max_tokens must be between 1 and 128000, got: {max_tokens}"
-                )
+                raise ValidationError(f"max_tokens must be between 1 and 128000, got: {max_tokens}")
 
         # Validate stream flag
         if "stream" in data:
@@ -64,7 +60,7 @@ class RequestValidator:
             raise ValidationError(f"Invalid model name: {model}")
 
     @staticmethod
-    def _validate_messages(messages: List[Dict[str, Any]]) -> None:
+    def _validate_messages(messages: list[dict[str, Any]]) -> None:
         """Validate message structure."""
         for i, msg in enumerate(messages):
             if not isinstance(msg, dict):
@@ -78,14 +74,11 @@ class RequestValidator:
             if role not in valid_roles:
                 raise ValidationError(f"Message {i} has invalid role: {role}")
 
-            if role == "user" and "content" not in msg:
-                if "content" not in msg and "text" not in msg:
-                    raise ValidationError(
-                        f"User message {i} must have 'content' or 'text'"
-                    )
+            if role == "user" and "content" not in msg and "text" not in msg:
+                raise ValidationError(f"User message {i} must have 'content' or 'text'")
 
     @staticmethod
-    def _validate_tools(tools: List[Dict[str, Any]]) -> None:
+    def _validate_tools(tools: list[dict[str, Any]]) -> None:
         """Validate tools structure."""
         for i, tool in enumerate(tools):
             if not isinstance(tool, dict):
@@ -95,19 +88,19 @@ class RequestValidator:
                 raise ValidationError(f"Tool {i} missing required field 'type'")
 
     @staticmethod
-    def _validate_compact_request(data: Dict[str, Any]) -> None:
+    def _validate_compact_request(data: dict[str, Any]) -> None:
         """Validate compaction-specific requests.
 
         After normalization, compact requests have messages[] instead of input[].
         """
         if "messages" not in data:
-            raise ValidationError("Compaction requests must have 'messages' field after normalization")
+            raise ValidationError(
+                "Compaction requests must have 'messages' field after normalization"
+            )
 
         messages = data["messages"]
         if not isinstance(messages, list):
             raise ValidationError("Compaction messages must be a list")
 
         if len(messages) > 100:
-            raise ValidationError(
-                "Compaction messages exceeds maximum length of 100"
-            )
+            raise ValidationError("Compaction messages exceeds maximum length of 100")

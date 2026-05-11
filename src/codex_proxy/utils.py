@@ -3,9 +3,11 @@ import logging
 import os
 import sys
 from logging.handlers import RotatingFileHandler
+
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+
 from .config import config
 
 logger = logging.getLogger(__name__)
