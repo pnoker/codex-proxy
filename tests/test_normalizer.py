@@ -170,7 +170,9 @@ class TestToolCallNormalization:
     """Test tool call normalization."""
 
     def test_function_call(self):
-        """Test that function calls are normalized."""
+        """Function calls become an assistant tool_call plus a synthetic empty
+        tool response so providers that require strict pairing don't reject
+        the request."""
         data = {
             "input": [
                 {
@@ -181,11 +183,22 @@ class TestToolCallNormalization:
             ]
         }
         result = RequestNormalizer.normalize(data)
-        assert len(result["messages"]) == 1
-        assert result["messages"][0]["role"] == "assistant"
-        assert "tool_calls" in result["messages"][0]
-        assert result["messages"][0]["tool_calls"][0]["function"]["name"] == "search"
-        assert '"query": "test"' in result["messages"][0]["tool_calls"][0]["function"]["arguments"]
+
+        assert len(result["messages"]) == 2
+
+        assistant = result["messages"][0]
+        assert assistant["role"] == "assistant"
+        assert "tool_calls" in assistant
+        tool_call = assistant["tool_calls"][0]
+        assert tool_call["function"]["name"] == "search"
+        assert '"query": "test"' in tool_call["function"]["arguments"]
+
+        # Orphan tool_call must be paired with an empty tool result by
+        # _fix_missing_tool_responses.
+        tool_resp = result["messages"][1]
+        assert tool_resp["role"] == "tool"
+        assert tool_resp["tool_call_id"] == tool_call["id"]
+        assert tool_resp["content"] == ""
 
     def test_command_execution(self):
         """Test that command execution is normalized to function call."""
