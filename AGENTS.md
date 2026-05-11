@@ -1,52 +1,53 @@
 # codex-proxy
 
-OpenAI Responses API 代理：将 Codex CLI 请求翻译为 Z.AI / DeepSeek / Xiaomi Chat Completions API，再将 SSE 响应转回 Responses API 事件流。
+OpenAI Responses API proxy: translates Codex CLI requests into Z.AI / DeepSeek / Xiaomi Chat Completions calls and converts the SSE responses back into Responses API events.
 
-## 规则
+## Rules
 
-- 不要自动 git commit 或 git push，除非我明确要求
-- 测试用 unittest.mock，不发真实 API 调用
-- 无框架，原生 http.server，所有逻辑手写
+- Do not auto `git commit` or `git push` unless I explicitly ask.
+- Tests use `unittest.mock`; never make real API calls.
+- No frameworks. Plain `http.server`, all logic written by hand.
 
-## 命令
+## Commands
 
 ```bash
-uv sync                              # 安装依赖
-uv run pytest tests/ -v              # 测试
-uv run ruff check src/ tests/        # lint
-uv run mypy src/                     # 类型检查
-uv run codex-proxy                   # 启动 (默认 0.0.0.0:8765)
+uv sync                              # install dependencies
+uv run pytest -q                     # tests
+uv run ruff check .                  # lint
+uv run ruff format .                 # format
+uv run mypy src                      # type check
+uv run codex-proxy                   # start (default 127.0.0.1:8765)
 ```
 
-## 请求流
+## Request Flow
 
 ```
 CLI -> POST /{provider}/v1/responses
-  -> server.py:       路由 + validator 校验原始字段
+  -> server.py:       routing + validator on raw fields
   -> normalizer.py:   Responses input -> Chat messages
-  -> provider:        转发到后端 Chat Completions API
-  -> base_stream.py:  后端 SSE -> Responses API 事件流
+  -> provider:        forward to backend Chat Completions API
+  -> base_stream.py:  backend SSE -> Responses API event stream
   -> CLI
 ```
 
-## 文件速查
+## File Map
 
-| 文件 | 一句话 |
+| File | One-liner |
 |---|---|
-| `server.py` | HTTP 路由、请求分发、日志、/config 认证 |
-| `normalizer.py` | input -> messages（含多类型 tool call/output 转换） |
-| `validator.py` | 校验原始请求（在 normalize 之前） |
-| `config.py` | 三层配置 env > file > defaults，持久化到 ~/.config/codex-proxy/ |
-| `providers/base.py` | Provider ABC，同步响应映射，共享 `convert_shell_call()` |
-| `providers/base_stream.py` | SSE 流处理，所有 provider 共用 `BaseStreamHandler` |
-| `providers/{zai,deepseek,xiaomi}.py` | 各 provider payload 转换 + API 请求 |
+| `server.py` | HTTP routing, request dispatch, logging |
+| `normalizer.py` | `input` -> `messages` (covers all tool-call / tool-output variants) |
+| `validator.py` | Validate the raw request (runs *before* normalize) |
+| `config.py` | Env-only configuration via `CODEX_PROXY_*` variables |
+| `providers/base.py` | Provider ABC, sync response mapping, shared `convert_shell_call()` |
+| `providers/base_stream.py` | SSE stream handling shared by every provider via `BaseStreamHandler` |
+| `providers/{zai,deepseek,xiaomi}.py` | Provider-specific payload transforms and API calls |
 
-## 陷阱
+## Pitfalls
 
-- **validator 在 normalize 之前执行**：原始数据用 `input` 不用 `messages`，messages 校验被跳过是设计如此
-- **stream 异常不能冒泡到 do_POST**：headers 已发送后再调 send_error 会崩溃，异常在 `_handle_stream_response` 内部捕获
-- **stream 出错发 `response.incomplete`**：不是 `response.completed`，Codex CLI 依赖此状态判断
-- **shell call 仅在客户端有 local_shell builtin 时转换**：Mac/Linux Codex CLI 注册 `{"type": "local_shell"}` builtin，需把 name 为 shell/container.exec/shell_command 的 function_call 转为 local_shell_call；Windows Codex CLI 没有该 builtin，注册的是普通 `shell` function，转换会触发 `unsupported call: local_shell_command`。`convert_shell_call(item, has_local_shell=...)` 由请求 tools 自适应判断
-- **SSE 事件顺序**：response.created -> output_item.added -> [text.delta...] -> output_text.done -> output_item.done -> response.completed
-- **配置优先级**：env > config.json > defaults；config_token 为空则不限制 /config 访问
-- **debug_mode 默认 false**：生产环境不要开，会记录完整请求体含 API key
+- **Validator runs before normalize.** Raw payloads use `input`, not `messages`, so the `messages` checks are skipped on purpose at the raw stage.
+- **Stream exceptions must not bubble to `do_POST`.** Once headers are flushed, calling `send_error` crashes the handler. Catch inside `_handle_stream_response`.
+- **On stream failure emit `response.incomplete`,** not `response.completed` — Codex CLI relies on that state.
+- **Shell-call conversion depends on the client.** macOS/Linux Codex CLI registers a `{"type": "local_shell"}` builtin, so `function_call`s named `shell` / `container.exec` / `shell_command` must be rewritten to `local_shell_call`. Windows Codex CLI registers a plain `shell` function with no `local_shell` builtin — converting there triggers `unsupported call: local_shell_command`. `convert_shell_call(item, has_local_shell=...)` decides based on the request's tool list.
+- **SSE event order:** `response.created` → `output_item.added` → `[text.delta…]` → `output_text.done` → `output_item.done` → `response.completed`.
+- **Configuration is env-only:** `CODEX_PROXY_*` variables. There is no config file, no `/config` endpoint, no auth token.
+- **`debug_mode` is `false` by default.** Do not enable in production — it logs full request bodies including API keys.
