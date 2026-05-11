@@ -1,6 +1,6 @@
 # codex-proxy
 
-[![CI](https://github.com/cornellsh/codex-proxy/workflows/CI/badge.svg)](https://github.com/cornellsh/codex-proxy/actions)
+[![CI](https://github.com/pnoker/codex-proxy/workflows/CI/badge.svg)](https://github.com/pnoker/codex-proxy/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 **An OpenAI Responses API proxy for Z.AI, DeepSeek, and Xiaomi providers.**
@@ -21,7 +21,7 @@ Translates OpenAI's Responses API to Z.AI (GLM), DeepSeek, and Xiaomi chat compl
 ### 1. Clone
 
 ```bash
-git clone https://github.com/cornellsh/codex-proxy.git
+git clone https://github.com/pnoker/codex-proxy.git
 cd codex-proxy
 ```
 

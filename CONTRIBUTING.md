@@ -6,7 +6,7 @@ Thank you for your interest in contributing to codex-proxy!
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/cornellsh/codex-proxy.git
+   git clone https://github.com/pnoker/codex-proxy.git
    cd codex-proxy
    ```
 
