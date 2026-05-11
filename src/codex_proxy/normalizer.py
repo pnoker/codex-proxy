@@ -261,48 +261,6 @@ class RequestNormalizer:
         Many providers reject requests where a tool_call is not followed by a
         corresponding tool result message.
         """
-        # Collect all tool_call_ids that have a matching tool result
-        result_ids = set()
-        for msg in messages:
-            if msg.get("role") == "tool" and msg.get("tool_call_id"):
-                result_ids.add(msg["tool_call_id"])
-
-        # Find orphaned tool_calls and insert empty responses
-        insertions = []
-        for msg in messages:
-            for tc in msg.get("tool_calls", []):
-                tc_id = tc.get("id")
-                if tc_id and tc_id not in result_ids:
-                    insertions.append(
-                        {
-                            "role": "tool",
-                            "tool_call_id": tc_id,
-                            "content": "",
-                        }
-                    )
-                    result_ids.add(tc_id)  # avoid duplicates
-
-        if insertions:
-            messages.extend(insertions)
-
-    @staticmethod
-    def _ensure_tool_call_ids(messages: list[dict[str, Any]]) -> None:
-        """Ensure every tool_call has an id field.
-
-        Some providers reject requests where tool_calls lack an id.
-        """
-        for msg in messages:
-            for tc in msg.get("tool_calls", []):
-                if not tc.get("id"):
-                    tc["id"] = f"call_{id(tc) & 0xFFFFFFFF:08x}"
-
-    @staticmethod
-    def _fix_missing_tool_responses(messages: list[dict[str, Any]]) -> None:
-        """Insert empty tool results for any tool_call that has no matching response.
-
-        Many providers reject requests where a tool_call is not followed by a
-        corresponding tool result message.
-        """
         result_ids = set()
         for msg in messages:
             if msg.get("role") == "tool" and msg.get("tool_call_id"):
